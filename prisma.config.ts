@@ -1,8 +1,11 @@
+import { loadEnvConfig } from "@next/env";
 import { defineConfig } from "prisma/config";
 
-// Datasource URL lives here in Prisma 7 (no longer in schema.prisma). The
-// runtime client uses a separate adapter in lib/db/client.ts; this config is
-// for the Prisma CLI (migrate, studio, db push).
+// Prisma CLI doesn't read .env.local by itself, only .env. Use Next.js's
+// own env loader so `prisma migrate` and `prisma db seed` see the same
+// vars the app sees at runtime.
+loadEnvConfig(process.cwd());
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   datasource: {

@@ -2,15 +2,18 @@
 // calls, agent runs, and audit entries for Loom recording and screenshots.
 //
 // Run after `prisma migrate dev` and applying `prisma/sql/setup.sql`:
-//   npm run prisma db seed
+//   yarn prisma db seed
 //
 // Notes:
 // - User mirror is created directly (in production the Supabase auth trigger
 //   keeps `public.users` in sync; here we synthesize a demo user).
 // - Transcripts and agent outputs are synthetic but plausible.
 
+import { loadEnvConfig } from "@next/env";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+
+loadEnvConfig(process.cwd());
 
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
 
