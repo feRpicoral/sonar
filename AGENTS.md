@@ -12,8 +12,6 @@ This project runs on **Next.js 16**, which has breaking changes from many agents
 
 A B2B sales enablement SaaS. Multi-agent orchestration (LangGraph.js) processes sales call recordings to generate research, analysis, strategy, and follow-up emails. Multi-tenant workspace model with per-org billing.
 
-The full implementation plan is at `/Users/fpicoral/.claude/plans/users-fpicoral-downloads-sonar-md-init-jolly-crown.md`. The original product spec is at `/Users/fpicoral/Downloads/sonar.md`.
-
 ## Architecture pillars
 
 1. **Multi-agent with state** - LangGraph nodes return structured Zod outputs, never free text. State carries `orgId` / `userId`. Postgres checkpointer enables resume on `interrupt()`. Inngest is the executor; Supabase Realtime is the UI transport.
