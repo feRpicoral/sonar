@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "seed": "tsx prisma/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "husky",
@@ -68,6 +69,7 @@
   "devDependencies": {
     "@commitlint/cli": "^21.0.1",
     "@commitlint/config-conventional": "^21.0.1",
+    "@inquirer/prompts": "^8.4.3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20.19.41",
     "@types/react": "^19",
@@ -81,6 +83,7 @@
     "eslint-plugin-tailwindcss": "^3.18.3",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.4",
+    "picocolors": "^1.1.1",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "prisma": "^7.8.0",

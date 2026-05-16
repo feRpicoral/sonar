@@ -1,62 +1,128 @@
 // Demo seed - populates the workspace owned by a real Supabase auth user
-// with sample leads, a call with transcript, and audit entries. The user id
-// comes from the DEMO_USER_ID env var, or an interactive prompt if unset.
+// with sample leads, a call with transcript, and audit entries.
 //
-//   yarn prisma db seed                          # interactive prompt
-//   DEMO_USER_ID=<uuid> yarn prisma db seed      # non-interactive
+//   yarn seed                                # interactive menu (recommended)
+//   DEMO_USER_ID=<uuid> yarn seed            # non-interactive
 //
-// Find the UUID at: Supabase > Authentication > Users.
+// We run via `yarn seed` rather than `yarn prisma db seed` because Prisma's
+// child-process spawning swallows stdin in some setups, which breaks the
+// interactive prompt. The script is still wired up under prisma.config.ts
+// for environments where `prisma db seed` is preferred.
 
-import { stdin, stdout } from "node:process";
-import readline from "node:readline";
-
+import { input, select } from "@inquirer/prompts";
 import { loadEnvConfig } from "@next/env";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
+import pc from "picocolors";
 
 loadEnvConfig(process.cwd());
 
 const databaseUrl = process.env.DATABASE_URL;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 if (!databaseUrl) {
   throw new Error(
     "DATABASE_URL is not set. Copy .env.example to .env.local and fill in your Supabase connection strings.",
   );
 }
+if (!supabaseUrl) {
+  throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set.");
+}
+if (!supabaseServiceKey) {
+  throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set.");
+}
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function resolveDemoUserId(): Promise<string> {
+interface AuthUserSummary {
+  id: string;
+  email: string;
+  name: string;
+}
+
+function makeAdminClient(): SupabaseClient {
+  return createSupabaseClient(supabaseUrl!, supabaseServiceKey!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+function summarize(u: {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+}): AuthUserSummary {
+  const meta = (u.user_metadata ?? {}) as { full_name?: unknown; name?: unknown };
+  const name =
+    (typeof meta.full_name === "string" && meta.full_name) ||
+    (typeof meta.name === "string" && meta.name) ||
+    u.email ||
+    u.id;
+  return { id: u.id, email: u.email ?? "(no email)", name };
+}
+
+async function listSupabaseUsers(): Promise<AuthUserSummary[]> {
+  const admin = makeAdminClient();
+  const { data, error } = await admin.auth.admin.listUsers({ perPage: 100 });
+  if (error) throw error;
+  return data.users.map(summarize);
+}
+
+async function fetchSupabaseUser(userId: string): Promise<AuthUserSummary> {
+  const admin = makeAdminClient();
+  const { data, error } = await admin.auth.admin.getUserById(userId);
+  if (error || !data.user) {
+    throw new Error(
+      `No Supabase auth user with id ${userId}. Sign up via the app first, then re-run the seed.`,
+    );
+  }
+  return summarize(data.user);
+}
+
+async function resolveDemoUser(): Promise<AuthUserSummary> {
   const fromEnv = process.env.DEMO_USER_ID?.trim();
   if (fromEnv) {
     if (!UUID_REGEX.test(fromEnv)) {
       throw new Error(`DEMO_USER_ID is not a valid UUID: ${fromEnv}`);
     }
-    return fromEnv;
+    return fetchSupabaseUser(fromEnv);
   }
 
-  console.log("\nFind your user id at: Supabase > Authentication > Users\n");
-
-  // Plain callback-style readline. The promises wrapper occasionally hangs
-  // when invoked through `prisma db seed` because of how Prisma spawns the
-  // child process; the callback API behaves consistently.
-  const answer: string = await new Promise((resolve, reject) => {
-    const rl = readline.createInterface({
-      input: stdin,
-      output: stdout,
-      terminal: true,
-    });
-    rl.question("Demo user id (UUID): ", (input) => {
-      rl.close();
-      resolve(input);
-    });
-    rl.on("error", reject);
+  const method = await select<"browse" | "manual">({
+    message: "How do you want to pick the demo user?",
+    choices: [
+      { name: "Browse Supabase users (recommended)", value: "browse" },
+      { name: "Enter UUID manually", value: "manual" },
+    ],
+    default: "browse",
   });
 
-  const trimmed = answer.trim();
-  if (!UUID_REGEX.test(trimmed)) {
-    throw new Error(`Not a valid UUID: ${trimmed || "(empty)"}`);
+  if (method === "manual") {
+    const id = await input({
+      message: "Supabase user UUID:",
+      validate: (v) => UUID_REGEX.test(v.trim()) || "Not a valid UUID",
+    });
+    return fetchSupabaseUser(id.trim());
   }
-  return trimmed;
+
+  process.stdout.write(pc.dim("Loading users from Supabase...\n"));
+  const users = await listSupabaseUsers();
+  if (users.length === 0) {
+    throw new Error("No Supabase users found. Sign up via the app first.");
+  }
+
+  const selectedId = await select<string>({
+    message: "Pick a user:",
+    pageSize: 12,
+    choices: users.map((u) => ({
+      name: `${u.name}  ${pc.dim(`<${u.email}>`)}  ${pc.gray(u.id)}`,
+      value: u.id,
+      short: u.name,
+    })),
+  });
+
+  return users.find((u) => u.id === selectedId)!;
 }
 
 const adapter = new PrismaPg({ connectionString: databaseUrl });
@@ -174,26 +240,28 @@ const SAMPLE_TRANSCRIPT_SEGMENTS = [
 ];
 
 function step(message: string): void {
-  console.log(`  > ${message}`);
+  console.log(`${pc.dim(">")} ${message}`);
 }
 
-async function main() {
-  step("Resolving demo user id");
-  const demoUserId = await resolveDemoUserId();
-  step(`Using user id ${demoUserId}`);
+async function main(): Promise<void> {
+  console.log(pc.bold("\nSonar demo seed\n"));
+
+  const demoUser = await resolveDemoUser();
+  console.log(`\n${pc.green("Using")} ${pc.bold(demoUser.name)} ${pc.dim(`<${demoUser.email}>`)}`);
+  console.log(`${pc.dim("id:")} ${pc.gray(demoUser.id)}\n`);
 
   step("Upserting user mirror in public.users");
   const user = await prisma.user.upsert({
-    where: { id: demoUserId },
+    where: { id: demoUser.id },
     create: {
-      id: demoUserId,
-      email: "demo@sonar.dev",
-      name: "Demo Rep",
+      id: demoUser.id,
+      email: demoUser.email,
+      name: demoUser.name,
       avatarUrl: null,
     },
-    update: { email: "demo@sonar.dev", name: "Demo Rep" },
+    update: { email: demoUser.email, name: demoUser.name },
   });
-  step(`User row ok (${user.id})`);
+  step(`User row ok (${pc.gray(user.id)})`);
 
   step("Upserting organization 'sonar-demo'");
   const org = await prisma.organization.upsert({
@@ -201,7 +269,7 @@ async function main() {
     create: { name: "Sonar Demo Co", slug: "sonar-demo" },
     update: {},
   });
-  step(`Organization ok (${org.id})`);
+  step(`Organization ok (${pc.gray(org.id)})`);
 
   step("Upserting membership (admin)");
   await prisma.membership.upsert({
@@ -211,7 +279,7 @@ async function main() {
   });
   step("Membership ok");
 
-  step("Clearing existing leads (and cascading calls)");
+  step("Clearing existing leads (cascades to calls)");
   const deleted = await prisma.lead.deleteMany({ where: { orgId: org.id } });
   step(`Deleted ${deleted.count} existing leads`);
 
@@ -233,10 +301,8 @@ async function main() {
   );
   step(`Created ${leads.length} leads`);
 
-  // Attach a sample call with transcript to the first lead so the demo flow
-  // can immediately "Generate follow-up".
   const firstLead = leads[0]!;
-  step(`Attaching demo call to first lead (${firstLead.name})`);
+  step(`Attaching demo call to ${firstLead.name}`);
   await prisma.call.create({
     data: {
       orgId: org.id,
@@ -277,7 +343,9 @@ async function main() {
   });
   step(`Wrote ${leads.length + 1} audit entries`);
 
-  console.log("\nSeed complete.");
+  console.log(
+    `\n${pc.green(pc.bold("Done."))} Open the app at ${pc.cyan("http://localhost:3000/leads")}.\n`,
+  );
 }
 
 main()
@@ -286,7 +354,9 @@ main()
     process.exit(0);
   })
   .catch(async (err) => {
-    console.error(err);
+    console.error(
+      `\n${pc.red("Seed failed:")} ${err instanceof Error ? err.message : String(err)}\n`,
+    );
     await prisma.$disconnect();
     process.exit(1);
   });

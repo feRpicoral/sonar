@@ -157,14 +157,21 @@ Then apply the RLS policies, the auth trigger, and the storage bucket: copy `pri
 Optional demo data:
 
 ```bash
-yarn prisma db seed
+yarn seed
 ```
 
-The script prompts for a Supabase user UUID (find it under **Authentication → Users** in the Supabase dashboard) and attributes all seeded leads, calls, and audit entries to that user. Sign up via the app first so the auth user exists, then run the seed and paste your UUID at the prompt. To skip the prompt in scripts:
+Sign up via the app first so the auth user exists, then run `yarn seed`. The script offers a menu:
+
+- **Browse Supabase users** (default): paginated list of every auth user with name, email, and id. Arrow keys to navigate, Enter to select.
+- **Enter UUID manually**: paste a UUID; the script verifies the user exists via the Supabase admin API before writing anything.
+
+To skip the menu in CI or scripts:
 
 ```bash
-DEMO_USER_ID=<your-uuid> yarn prisma db seed
+DEMO_USER_ID=<your-uuid> yarn seed
 ```
+
+Why `yarn seed` and not `yarn prisma db seed`: Prisma's child-process spawn swallows stdin in some terminal setups, which makes interactive prompts hang. `yarn seed` runs `tsx prisma/seed.ts` directly. The Prisma config still has a seed entry for environments where `prisma db seed` is preferred.
 
 ### Daily
 
