@@ -6,12 +6,15 @@ import { defineConfig } from "prisma/config";
 // vars the app sees at runtime.
 loadEnvConfig(process.cwd());
 
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error(
+    "DATABASE_URL is not set. Copy .env.example to .env.local and fill in your Supabase connection strings.",
+  );
+}
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
-  datasource: {
-    url: process.env.DATABASE_URL ?? "postgresql://placeholder",
-  },
-  migrations: {
-    path: "prisma/migrations",
-  },
+  datasource: { url: databaseUrl },
+  migrations: { path: "prisma/migrations" },
 });

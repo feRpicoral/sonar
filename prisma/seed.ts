@@ -15,11 +15,16 @@ import { PrismaClient } from "@prisma/client";
 
 loadEnvConfig(process.cwd());
 
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error(
+    "DATABASE_URL is not set. Copy .env.example to .env.local and fill in your Supabase connection strings.",
+  );
+}
+
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
 
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL ?? "postgresql://placeholder",
-});
+const adapter = new PrismaPg({ connectionString: databaseUrl });
 const prisma = new PrismaClient({ adapter });
 
 const LEADS: Array<{
