@@ -1,0 +1,11 @@
+.next
+out
+build
+node_modules
+.vercel
+.husky
+public
+*.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
