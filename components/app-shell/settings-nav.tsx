@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const NAV = [
+  { href: "/settings/profile", label: "Profile" },
   { href: "/settings/members", label: "Members" },
   { href: "/settings/billing", label: "Billing" },
   { href: "/settings/api-keys", label: "API keys" },

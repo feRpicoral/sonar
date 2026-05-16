@@ -17,31 +17,38 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { signupAction } from "@/lib/auth/actions";
+import { updateProfileAction } from "@/lib/auth/profile-actions";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(80),
-  email: z.string().email("Invalid email"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  avatarUrl: z.union([z.string().url("Invalid URL"), z.literal("")]).optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
 
-export function SignupForm() {
+export function ProfileForm({
+  initialName,
+  initialAvatarUrl,
+  email,
+}: {
+  initialName: string;
+  initialAvatarUrl: string;
+  email: string;
+}) {
   const [isPending, startTransition] = useTransition();
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", email: "", password: "" },
+    defaultValues: { name: initialName, avatarUrl: initialAvatarUrl },
   });
 
   const onSubmit = (data: FormValues) => {
     startTransition(async () => {
       const fd = new FormData();
       fd.append("name", data.name);
-      fd.append("email", data.email);
-      fd.append("password", data.password);
-      const result = await signupAction({}, fd);
-      if (result?.error) toast.error(result.error);
+      if (data.avatarUrl) fd.append("avatarUrl", data.avatarUrl);
+      const result = await updateProfileAction(fd);
+      if (result.error) toast.error(result.error);
+      else toast.success("Profile updated");
     });
   };
 
@@ -53,9 +60,9 @@ export function SignupForm() {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Your name</FormLabel>
+              <FormLabel>Name</FormLabel>
               <FormControl>
-                <Input autoComplete="name" placeholder="Jane Doe" {...field} />
+                <Input autoComplete="name" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -63,33 +70,29 @@ export function SignupForm() {
         />
         <FormField
           control={form.control}
-          name="email"
+          name="avatarUrl"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Work email</FormLabel>
+              <FormLabel>Avatar URL (optional)</FormLabel>
               <FormControl>
-                <Input type="email" autoComplete="email" placeholder="you@company.com" {...field} />
+                <Input type="url" placeholder="https://..." {...field} value={field.value ?? ""} />
               </FormControl>
+              <FormDescription>
+                Public image URL. Upload to your own host (e.g. GitHub avatar) and paste the link.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <Input type="password" autoComplete="new-password" {...field} />
-              </FormControl>
-              <FormDescription>At least 8 characters.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit" className="w-full" disabled={isPending}>
-          {isPending ? "Creating account…" : "Create account"}
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Email</label>
+          <Input value={email} disabled readOnly className="text-muted-foreground" />
+          <p className="text-muted-foreground text-xs">
+            Email cannot be changed from here. Use Supabase Auth flows for email migration.
+          </p>
+        </div>
+        <Button type="submit" disabled={isPending || !form.formState.isDirty}>
+          {isPending ? "Saving…" : "Save changes"}
         </Button>
       </form>
     </Form>

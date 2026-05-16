@@ -10,6 +10,10 @@ const credentialsSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
+const signupSchema = credentialsSchema.extend({
+  name: z.string().min(1, "Name is required").max(80),
+});
+
 export type ActionResult = { error?: string };
 
 function appUrl(): string {
@@ -33,7 +37,8 @@ export async function loginAction(_prev: ActionResult, formData: FormData): Prom
 }
 
 export async function signupAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const parsed = credentialsSchema.safeParse({
+  const parsed = signupSchema.safeParse({
+    name: formData.get("name"),
     email: formData.get("email"),
     password: formData.get("password"),
   });
@@ -43,8 +48,12 @@ export async function signupAction(_prev: ActionResult, formData: FormData): Pro
 
   const supabase = await createServerSupabase();
   const { error } = await supabase.auth.signUp({
-    ...parsed.data,
+    email: parsed.data.email,
+    password: parsed.data.password,
     options: {
+      // The auth trigger in prisma/sql/setup.sql reads raw_user_meta_data
+      // and propagates full_name to public.users.name.
+      data: { full_name: parsed.data.name },
       emailRedirectTo: `${appUrl()}/auth/callback?next=/create-org`,
     },
   });
