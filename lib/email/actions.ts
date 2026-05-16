@@ -8,6 +8,7 @@ import { requireSessionOrOnboard } from "@/lib/auth/session";
 import { asEmailDraftId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
 import { getFromAddress, sendEmail } from "@/lib/email/resend";
+import { publishEvent } from "@/lib/webhooks/publish";
 
 export type ActionResult<T extends object = object> =
   | ({ error: string } & Partial<T>)
@@ -100,6 +101,13 @@ export async function approveAndSendEmailAction(
       targetType: "email_draft",
       targetId: asEmailDraftId(draft.id),
       metadata: { to: recipient, from: getFromAddress(), resendMessageId: result.messageId },
+    });
+
+    await publishEvent(session.orgId, "email.sent", {
+      draftId: draft.id,
+      to: recipient,
+      subject: draft.subject,
+      resendMessageId: result.messageId,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

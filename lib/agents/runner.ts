@@ -2,6 +2,7 @@ import { writeAudit } from "@/lib/audit/log";
 import { getPrisma } from "@/lib/db/client";
 import { asOrgId, asRunId, asUserId, type OrgId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
+import { publishEvent } from "@/lib/webhooks/publish";
 
 import { analysisNode } from "./nodes/analysis";
 import { researchNode } from "./nodes/research";
@@ -140,6 +141,12 @@ export async function runAgent(runId: string): Promise<void> {
       targetType: "run",
       targetId: asRunId(runId),
       metadata: { leadId: run.leadId, callId: run.callId },
+    });
+
+    await publishEvent(orgId, "run.completed", {
+      runId,
+      leadId: run.leadId,
+      callId: run.callId,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

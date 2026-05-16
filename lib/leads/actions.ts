@@ -8,6 +8,7 @@ import { requireSessionOrOnboard } from "@/lib/auth/session";
 import { getPrisma } from "@/lib/db/client";
 import { asLeadId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
+import { publishEvent } from "@/lib/webhooks/publish";
 
 const LEAD_STATUSES = ["DISCOVERY", "QUALIFIED", "DEMO", "PROPOSAL", "CLOSED"] as const;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
@@ -58,6 +59,13 @@ export async function createLeadAction(
     metadata: { name: lead.name, status: lead.status },
   });
 
+  await publishEvent(session.orgId, "lead.created", {
+    leadId: lead.id,
+    name: lead.name,
+    companyName: lead.companyName,
+    status: lead.status,
+  });
+
   revalidatePath("/leads");
   return { id: lead.id };
 }
@@ -88,6 +96,12 @@ export async function updateLeadStatusAction(
     targetType: "lead",
     targetId: asLeadId(leadId),
     metadata: { from: existing.status, to: status },
+  });
+
+  await publishEvent(session.orgId, "lead.updated", {
+    leadId,
+    from: existing.status,
+    to: status,
   });
 
   revalidatePath("/leads");
