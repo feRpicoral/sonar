@@ -2,6 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { GenerateFollowupButton } from "@/components/calls/generate-followup-button";
 import { TranscriptViewer } from "@/components/calls/transcript-viewer";
 import { requireSessionOrOnboard } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/with-org";
@@ -51,17 +52,20 @@ export default async function CallDetailPage({
           <ArrowLeft className="h-3 w-3" /> Back to {call.lead.name}
         </Link>
 
-        <header className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Call transcript</h1>
-          <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
-            {call.durationSec != null && (
-              <span className="font-mono text-xs">{formatTimestamp(call.durationSec)}</span>
-            )}
-            {call.durationSec != null && <span>·</span>}
-            <span>{call.createdAt.toISOString().slice(0, 10)}</span>
-            <span>·</span>
-            <span>uploaded by {call.createdBy.name ?? call.createdBy.email}</span>
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight">Call transcript</h1>
+            <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
+              {call.durationSec != null && (
+                <span className="font-mono text-xs">{formatTimestamp(call.durationSec)}</span>
+              )}
+              {call.durationSec != null && <span>·</span>}
+              <span>{call.createdAt.toISOString().slice(0, 10)}</span>
+              <span>·</span>
+              <span>uploaded by {call.createdBy.name ?? call.createdBy.email}</span>
+            </div>
           </div>
+          {call.transcriptText && <GenerateFollowupButton leadId={id} callId={call.id} />}
         </header>
 
         {call.transcriptText ? (

@@ -1,0 +1,80 @@
+import { z } from "zod";
+
+// ─── Research (Haiku 4.5 + Tavily) ─────────────────────────────────────────
+
+export const ResearchOutputSchema = z.object({
+  segment: z.string().describe("Industry segment, e.g. 'B2B SaaS — workforce analytics'"),
+  companySize: z.string().optional().describe("Headcount range, e.g. '50-200 employees'"),
+  signals: z
+    .array(z.string())
+    .describe("Recent newsworthy signals — funding, hiring, product launches, etc."),
+  likelyPainPoints: z
+    .array(z.string())
+    .describe("Pain points the prospect likely has, based on segment and signals"),
+  summary: z.string().describe("2-3 sentence overall summary of the prospect"),
+});
+export type ResearchOutput = z.infer<typeof ResearchOutputSchema>;
+
+// ─── Analysis (Sonnet 4.6) ─────────────────────────────────────────────────
+
+export const KeyQuoteSchema = z.object({
+  text: z.string(),
+  segmentIndex: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe("Index into the provided segments array; used for citation."),
+});
+
+export const AnalysisOutputSchema = z.object({
+  topics: z.array(z.string()).describe("Main topics discussed in the call"),
+  confirmedPainPoints: z
+    .array(z.string())
+    .describe("Pain points the prospect explicitly confirmed in their own words"),
+  objections: z.array(z.string()).describe("Objections raised by the prospect"),
+  actionItems: z.array(z.string()).describe("Specific next steps agreed upon"),
+  sentiment: z.enum(["positive", "neutral", "negative"]),
+  keyQuotes: z.array(KeyQuoteSchema).describe("Important verbatim quotes with segment index"),
+});
+export type AnalysisOutput = z.infer<typeof AnalysisOutputSchema>;
+
+// ─── Strategy (Sonnet 4.6) ─────────────────────────────────────────────────
+
+export const StrategyOutputSchema = z.object({
+  nextStep: z.enum(["follow-up-email", "demo", "proposal", "discovery-call", "nurture"]),
+  urgency: z.enum(["high", "medium", "low"]),
+  talkingPoints: z
+    .array(z.string())
+    .describe("3-5 specific talking points the rep should hit in the next interaction"),
+  reasoning: z.string().describe("2-3 sentence justification for the next step and urgency"),
+});
+export type StrategyOutput = z.infer<typeof StrategyOutputSchema>;
+
+// ─── Writer (Sonnet 4.6) ───────────────────────────────────────────────────
+
+export const CitationSchema = z.object({
+  phrase: z.string().describe("The exact phrase from the email that needs backing"),
+  transcriptSegmentIndex: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe("Index into the transcript segments array that supports this phrase"),
+});
+
+export const WriterOutputSchema = z.object({
+  subject: z.string().describe("Email subject line"),
+  body: z.string().describe("Plain-text email body, 100-150 words, warm and direct, one clear CTA"),
+  citations: z
+    .array(CitationSchema)
+    .describe("Phrases in the body backed by specific transcript moments"),
+});
+export type WriterOutput = z.infer<typeof WriterOutputSchema>;
+
+// ─── Aggregate state ───────────────────────────────────────────────────────
+
+export interface AgentRunState {
+  research?: ResearchOutput;
+  analysis?: AnalysisOutput;
+  strategy?: StrategyOutput;
+  writer?: WriterOutput;
+}
