@@ -15,9 +15,9 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // vector is ours (pgvector for LeadEmbedding). The rest come pre-installed
-  // on every Supabase project; declaring them prevents `migrate dev` from
-  // treating them as drift and offering to reset the database.
+  // vector is for our pgvector embeddings. The rest come pre-installed on
+  // every Supabase project; declaring them here keeps schema reality lined
+  // up with the database so `prisma migrate dev` doesn't see them as drift.
   extensions = [vector, pgcrypto, pg_stat_statements, supabase_vault, uuidOssp(map: "uuid-ossp")]
 }
 

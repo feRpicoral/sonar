@@ -89,22 +89,82 @@ flowchart LR
     Key --> RH
 ```
 
+## Environment variables
+
+Sonar reads env vars via Next.js (`.env.local` for development, the platform's secret store for production). Same variable names in both. The "Sensitive" column tracks whether the value should be marked secret in your hosting provider (Vercel calls this "Sensitive"; the lock icon next to the input). `NEXT_PUBLIC_*` values end up in the client bundle anyway, so marking them sensitive only hides them in the UI; they aren't actually private.
+
+| Variable                                                         | Production                                                                        | Local (`.env.local`)                                                                                                     | Sensitive |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------- |
+| `NEXT_PUBLIC_APP_URL`                                            | the public origin of your deployment, e.g. `https://<your-deployment>.vercel.app` | `http://localhost:3000`                                                                                                  | no        |
+| `NEXT_PUBLIC_SUPABASE_URL`                                       | `https://<project>.supabase.co`                                                   | same                                                                                                                     | no        |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                  | publishable key, `sb_publishable_xxx`                                             | same                                                                                                                     | no        |
+| `SUPABASE_SERVICE_ROLE_KEY`                                      | secret key, `sb_secret_xxx`                                                       | same                                                                                                                     | yes       |
+| `DATABASE_URL`                                                   | Supabase **transaction pooler** URI + `?pgbouncer=true&connection_limit=1`        | Supabase **session pooler** URI                                                                                          | yes       |
+| `DIRECT_URL`                                                     | Supabase **session pooler** URI                                                   | same                                                                                                                     | yes       |
+| `ANTHROPIC_API_KEY`                                              | from `console.anthropic.com`                                                      | same                                                                                                                     | yes       |
+| `GROQ_API_KEY`                                                   | from `console.groq.com`                                                           | same                                                                                                                     | yes       |
+| `TAVILY_API_KEY`                                                 | from `tavily.com`                                                                 | same                                                                                                                     | yes       |
+| `STRIPE_SECRET_KEY`                                              | test mode `sk_test_xxx`                                                           | same                                                                                                                     | yes       |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`                             | test mode `pk_test_xxx`                                                           | same                                                                                                                     | no        |
+| `STRIPE_WEBHOOK_SECRET`                                          | `whsec_xxx` from the production webhook endpoint you create in Stripe             | `whsec_xxx` printed by `stripe listen --forward-to localhost:3000/api/webhooks/stripe` (different value from production) | yes       |
+| `STRIPE_PRICE_PRO`                                               | `price_xxx` of your Pro recurring price                                           | same                                                                                                                     | no        |
+| `RESEND_API_KEY`                                                 | sending-access key                                                                | same                                                                                                                     | yes       |
+| `RESEND_FROM_EMAIL`                                              | `onboarding@resend.dev` until you verify a domain                                 | same                                                                                                                     | no        |
+| `SENTRY_DSN` _(optional)_                                        | from a Sentry project                                                             | same or unset                                                                                                            | yes       |
+| `NEXT_PUBLIC_SENTRY_DSN` _(optional)_                            | same value as above                                                               | same or unset                                                                                                            | no        |
+| `SENTRY_AUTH_TOKEN` _(optional, for source map upload at build)_ | from Sentry org settings                                                          | unset locally                                                                                                            | yes       |
+| `NEXT_PUBLIC_POSTHOG_KEY` _(optional)_                           | from PostHog                                                                      | same or unset                                                                                                            | no        |
+| `NEXT_PUBLIC_POSTHOG_HOST` _(optional)_                          | `https://us.i.posthog.com`                                                        | same                                                                                                                     | no        |
+
+Two values differ between local and production:
+
+1. **`DATABASE_URL`** uses the transaction pooler in production (every serverless invocation opens a fresh connection) and the session pooler locally (longer-lived, supports prepared statements, plays nicely on IPv4 home networks).
+2. **`STRIPE_WEBHOOK_SECRET`** is a different signing secret for each environment. The production endpoint you register in Stripe's dashboard generates one; `stripe listen` prints another for local forwarding.
+
 ## Local development
 
-Requires Node 22 (see `.nvmrc`) and Yarn 4 via Corepack. Enable Corepack once with `corepack enable`; it picks the Yarn version pinned in `package.json#packageManager`.
+Requires Node 22 (see `.nvmrc`) and Yarn 4 via Corepack.
 
 ```bash
 cp .env.example .env.local
-# Fill in: Supabase URL + anon key + service role key + database URLs,
-# Anthropic, Groq, Tavily, Stripe (test mode), Resend.
-# Optional: Sentry, PostHog, LangSmith.
+# Fill in every key per the table above.
 
 nvm use                                       # picks 22 from .nvmrc
-corepack enable                               # one-time, lets yarn 4 self-install
+corepack enable                               # one-time, installs yarn 4
 yarn install                                  # postinstall runs prisma generate
-yarn prisma migrate dev --name init
-psql "$DIRECT_URL" -f prisma/sql/setup.sql    # or paste into the Supabase SQL editor
+```
+
+### First-time database setup
+
+The Supabase project comes with several pre-installed extensions (`pg_stat_statements`, `pgcrypto`, `supabase_vault`, `uuid-ossp`) that show up as drift in `prisma migrate dev`. Sonar's `schema.prisma` declares them so the schema lines up with reality, but for an existing Supabase project that's never had Prisma run against it, you bootstrap a baseline migration manually:
+
+```bash
+mkdir -p prisma/migrations/0_init
+
+yarn prisma migrate diff \
+  --from-empty \
+  --to-schema prisma/schema.prisma \
+  --script \
+  > prisma/migrations/0_init/migration.sql
+
+yarn prisma migrate deploy
+```
+
+`migrate diff` writes the SQL needed to take an empty database to the current schema state. `migrate deploy` applies it and records the migration in `_prisma_migrations`. From here, `yarn prisma migrate dev --name <change>` works normally for future schema changes; drift detection compares against the baseline you just created.
+
+Then apply the RLS policies, the auth trigger, and the storage bucket: copy `prisma/sql/setup.sql` into the Supabase SQL editor and run it. The script is idempotent and safe to re-run.
+
+Optional demo data:
+
+```bash
 yarn prisma db seed
+```
+
+The seed creates a workspace with 10 leads and one call with a transcript. The synthetic user id won't match your real `auth.users.id`, so after signing up you'll see an empty workspace. Either skip the seed and create leads through the UI, or after signup edit `DEMO_USER_ID` in `prisma/seed.ts` to your real user id and re-run.
+
+### Daily
+
+```bash
 yarn dev
 ```
 
@@ -116,6 +176,14 @@ yarn lint        # ESLint flat config
 yarn test        # Vitest
 yarn build       # Next.js production build
 ```
+
+## Deploying to Vercel
+
+The Hobby tier covers a portfolio demo. Import the repo from GitHub, leave Build / Output / Install commands empty (Vercel auto-detects yarn via the `packageManager` field), and paste your env vars from `.env.local` swapping in the production values from the table above. After the first deploy:
+
+1. If Vercel assigned a domain that isn't what you put in `NEXT_PUBLIC_APP_URL`, update the env var and redeploy.
+2. In Supabase **Authentication → URL Configuration**, add `https://<your-deployment>` to **Site URL** and **Redirect URLs**.
+3. In Stripe **Developers → Webhooks**, add an endpoint for `https://<your-deployment>/api/webhooks/stripe` with events `customer.subscription.created` / `updated` / `deleted` and `invoice.payment_succeeded` / `payment_failed`. Copy the signing secret it generates into `STRIPE_WEBHOOK_SECRET` in Vercel and redeploy.
 
 ## Project layout
 
