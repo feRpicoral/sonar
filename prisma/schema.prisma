@@ -1,0 +1,506 @@
+// Sonar — Prisma schema
+//
+// Multi-tenant B2B: every business table carries `orgId` and is indexed by it.
+// Three layers of tenant isolation:
+//   1. Branded TypeScript types at call sites (lib/db/types.ts)
+//   2. Prisma `$extends` middleware injects `orgId` (lib/db/with-org.ts)
+//   3. Postgres RLS policies (set up in migrations/ raw SQL)
+//
+// `User` mirrors Supabase `auth.users` via shared UUID; a trigger keeps it in sync.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector]
+}
+
+// ─────────────────────────────────────────────
+// Identity (mirror of Supabase auth.users)
+// ─────────────────────────────────────────────
+
+model User {
+  id        String   @id @db.Uuid
+  email     String   @unique
+  name      String?
+  avatarUrl String?  @map("avatar_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  memberships    Membership[]
+  invitesCreated Invite[]     @relation("InviteCreatedBy")
+  leadsCreated   Lead[]       @relation("LeadCreatedBy")
+  leadsAssigned  Lead[]       @relation("LeadAssignedTo")
+  callsCreated   Call[]       @relation("CallCreatedBy")
+  agentRuns      AgentRun[]
+  emailsApproved EmailDraft[] @relation("EmailApprovedBy")
+  auditEntries   AuditLog[]   @relation("AuditActor")
+  apiKeysCreated ApiKey[]     @relation("ApiKeyCreatedBy")
+  webhooksCreated Webhook[]   @relation("WebhookCreatedBy")
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────
+// Organization + membership
+// ─────────────────────────────────────────────
+
+model Organization {
+  id               String   @id @default(uuid()) @db.Uuid
+  name             String
+  slug             String   @unique
+  stripeCustomerId String?  @map("stripe_customer_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  memberships     Membership[]
+  invites         Invite[]
+  leads           Lead[]
+  calls           Call[]
+  interactions    Interaction[]
+  agentRuns       AgentRun[]
+  agentRunSteps   AgentRunStep[]
+  emailDrafts     EmailDraft[]
+  emailDeliveries EmailDelivery[]
+  leadEmbeddings  LeadEmbedding[]
+  subscription    Subscription?
+  auditLogs       AuditLog[]
+  webhooks        Webhook[]
+  webhookDeliveries WebhookDelivery[]
+  apiKeys         ApiKey[]
+
+  @@map("organizations")
+}
+
+enum MembershipRole {
+  ADMIN
+  MEMBER
+
+  @@map("membership_role")
+}
+
+model Membership {
+  id        String         @id @default(uuid()) @db.Uuid
+  orgId     String         @map("org_id") @db.Uuid
+  userId    String         @map("user_id") @db.Uuid
+  role      MembershipRole @default(MEMBER)
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+model Invite {
+  id              String         @id @default(uuid()) @db.Uuid
+  orgId           String         @map("org_id") @db.Uuid
+  token           String         @unique
+  email           String?
+  role            MembershipRole @default(MEMBER)
+  expiresAt       DateTime       @map("expires_at")
+  acceptedAt      DateTime?      @map("accepted_at")
+  createdByUserId String         @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("InviteCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([orgId])
+  @@map("invites")
+}
+
+// ─────────────────────────────────────────────
+// Pipeline (leads, calls, timeline)
+// ─────────────────────────────────────────────
+
+enum LeadStatus {
+  DISCOVERY
+  QUALIFIED
+  DEMO
+  PROPOSAL
+  CLOSED
+
+  @@map("lead_status")
+}
+
+model Lead {
+  id               String     @id @default(uuid()) @db.Uuid
+  orgId            String     @map("org_id") @db.Uuid
+  name             String
+  companyName      String?    @map("company_name")
+  companyWebsite   String?    @map("company_website")
+  status           LeadStatus @default(DISCOVERY)
+  assignedToUserId String?    @map("assigned_to_user_id") @db.Uuid
+  createdByUserId  String     @map("created_by_user_id") @db.Uuid
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+  deletedAt        DateTime?  @map("deleted_at")
+
+  organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  assignedTo   User?          @relation("LeadAssignedTo", fields: [assignedToUserId], references: [id])
+  createdBy    User           @relation("LeadCreatedBy", fields: [createdByUserId], references: [id])
+  calls        Call[]
+  interactions Interaction[]
+  agentRuns    AgentRun[]
+  embedding    LeadEmbedding?
+
+  @@index([orgId, status, deletedAt])
+  @@index([orgId, assignedToUserId])
+  @@map("leads")
+}
+
+model Call {
+  id              String    @id @default(uuid()) @db.Uuid
+  orgId           String    @map("org_id") @db.Uuid
+  leadId          String    @map("lead_id") @db.Uuid
+  audioPath       String    @map("audio_path")
+  durationSec     Int?      @map("duration_sec")
+  transcriptText  String?   @map("transcript_text")
+  segments        Json?
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("CallCreatedBy", fields: [createdByUserId], references: [id])
+  agentRuns    AgentRun[]
+
+  @@index([orgId, leadId])
+  @@map("calls")
+}
+
+model Interaction {
+  id         String   @id @default(uuid()) @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  leadId     String   @map("lead_id") @db.Uuid
+  type       String
+  payload    Json
+  occurredAt DateTime @default(now()) @map("occurred_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, leadId, occurredAt])
+  @@map("interactions")
+}
+
+// ─────────────────────────────────────────────
+// Agent runs
+// ─────────────────────────────────────────────
+
+enum AgentRunStatus {
+  PENDING
+  RUNNING
+  AWAITING_APPROVAL
+  COMPLETED
+  FAILED
+  CANCELLED
+
+  @@map("agent_run_status")
+}
+
+enum AgentRunStepStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+
+  @@map("agent_run_step_status")
+}
+
+enum AgentRunNode {
+  RESEARCH
+  TRANSCRIPTION
+  ANALYSIS
+  STRATEGY
+  WRITER
+
+  @@map("agent_run_node")
+}
+
+model AgentRun {
+  id              String         @id @default(uuid()) @db.Uuid
+  orgId           String         @map("org_id") @db.Uuid
+  leadId          String         @map("lead_id") @db.Uuid
+  callId          String?        @map("call_id") @db.Uuid
+  status          AgentRunStatus @default(PENDING)
+  state           Json           @default("{}")
+  traceUrl        String?        @map("trace_url")
+  startedAt       DateTime       @default(now()) @map("started_at")
+  completedAt     DateTime?      @map("completed_at")
+  createdByUserId String         @map("created_by_user_id") @db.Uuid
+
+  organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  lead         Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  call         Call?          @relation(fields: [callId], references: [id])
+  createdBy    User           @relation(fields: [createdByUserId], references: [id])
+  steps        AgentRunStep[]
+  emailDraft   EmailDraft?
+
+  @@index([orgId, leadId])
+  @@index([orgId, status])
+  @@map("agent_runs")
+}
+
+model AgentRunStep {
+  id           String             @id @default(uuid()) @db.Uuid
+  orgId        String             @map("org_id") @db.Uuid
+  runId        String             @map("run_id") @db.Uuid
+  node         AgentRunNode
+  status       AgentRunStepStatus @default(PENDING)
+  input        Json?
+  output       Json?
+  errorMessage String?            @map("error_message")
+  startedAt    DateTime?          @map("started_at")
+  completedAt  DateTime?          @map("completed_at")
+  createdAt    DateTime           @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  run          AgentRun     @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, node])
+  @@index([orgId, runId])
+  @@map("agent_run_steps")
+}
+
+// ─────────────────────────────────────────────
+// Email
+// ─────────────────────────────────────────────
+
+enum EmailDraftStatus {
+  DRAFT
+  APPROVED
+  SENT
+  FAILED
+
+  @@map("email_draft_status")
+}
+
+enum EmailDeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  BOUNCED
+  COMPLAINED
+  OPENED
+  CLICKED
+
+  @@map("email_delivery_status")
+}
+
+model EmailDraft {
+  id               String           @id @default(uuid()) @db.Uuid
+  orgId            String           @map("org_id") @db.Uuid
+  runId            String           @unique @map("run_id") @db.Uuid
+  subject          String
+  body             String
+  citations        Json             @default("[]")
+  status           EmailDraftStatus @default(DRAFT)
+  approvedByUserId String?          @map("approved_by_user_id") @db.Uuid
+  approvedAt       DateTime?        @map("approved_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  run          AgentRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  approvedBy   User?           @relation("EmailApprovedBy", fields: [approvedByUserId], references: [id])
+  deliveries   EmailDelivery[]
+
+  @@index([orgId])
+  @@map("email_drafts")
+}
+
+model EmailDelivery {
+  id              String              @id @default(uuid()) @db.Uuid
+  orgId           String              @map("org_id") @db.Uuid
+  draftId         String              @map("draft_id") @db.Uuid
+  resendMessageId String              @unique @map("resend_message_id")
+  status          EmailDeliveryStatus @default(PENDING)
+  events          Json                @default("[]")
+  sentAt          DateTime?           @map("sent_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  draft        EmailDraft   @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, draftId])
+  @@map("email_deliveries")
+}
+
+// ─────────────────────────────────────────────
+// Embeddings — pgvector with multi-tenant index
+// ─────────────────────────────────────────────
+
+model LeadEmbedding {
+  id        String                      @id @default(uuid()) @db.Uuid
+  orgId     String                      @map("org_id") @db.Uuid
+  leadId    String                      @unique @map("lead_id") @db.Uuid
+  embedding Unsupported("vector(1536)")
+  createdAt DateTime                    @default(now()) @map("created_at")
+  updatedAt DateTime                    @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  // Composite HNSW index on (org_id, embedding) is created in a raw SQL migration.
+  @@index([orgId])
+  @@map("lead_embeddings")
+}
+
+// ─────────────────────────────────────────────
+// Billing (Stripe)
+// ─────────────────────────────────────────────
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+
+  @@map("subscription_plan")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  UNPAID
+
+  @@map("subscription_status")
+}
+
+model Subscription {
+  id                   String             @id @default(uuid()) @db.Uuid
+  orgId                String             @unique @map("org_id") @db.Uuid
+  stripeSubscriptionId String?            @unique @map("stripe_subscription_id")
+  stripePriceId        String?            @map("stripe_price_id")
+  plan                 SubscriptionPlan   @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  currentPeriodEnd     DateTime?          @map("current_period_end")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model ProcessedStripeEvent {
+  eventId     String   @id @map("event_id")
+  type        String
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@map("processed_stripe_events")
+}
+
+// ─────────────────────────────────────────────
+// Audit log
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  action      String
+  targetType  String?  @map("target_type")
+  targetId    String?  @map("target_id") @db.Uuid
+  metadata    Json     @default("{}")
+  ip          String?
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  actor        User?        @relation("AuditActor", fields: [actorUserId], references: [id])
+
+  @@index([orgId, createdAt])
+  @@index([orgId, actorUserId, createdAt])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────
+// Webhooks (outbound)
+// ─────────────────────────────────────────────
+
+enum WebhookDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+  DEAD_LETTER
+
+  @@map("webhook_delivery_status")
+}
+
+model Webhook {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @map("org_id") @db.Uuid
+  url             String
+  events          String[] @default([])
+  secret          String
+  active          Boolean  @default(true)
+  description     String?
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy    User              @relation("WebhookCreatedBy", fields: [createdByUserId], references: [id])
+  deliveries   WebhookDelivery[]
+
+  @@index([orgId])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id             String                @id @default(uuid()) @db.Uuid
+  orgId          String                @map("org_id") @db.Uuid
+  webhookId      String                @map("webhook_id") @db.Uuid
+  eventId        String                @map("event_id") @db.Uuid
+  eventType      String                @map("event_type")
+  payload        Json
+  attempt        Int                   @default(1)
+  status         WebhookDeliveryStatus @default(PENDING)
+  responseStatus Int?                  @map("response_status")
+  responseBody   String?               @map("response_body")
+  deliveredAt    DateTime?             @map("delivered_at")
+  nextRetryAt    DateTime?             @map("next_retry_at")
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  webhook      Webhook      @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, webhookId, status])
+  @@index([nextRetryAt])
+  @@map("webhook_deliveries")
+}
+
+// ─────────────────────────────────────────────
+// API keys
+// ─────────────────────────────────────────────
+
+model ApiKey {
+  id              String    @id @default(uuid()) @db.Uuid
+  orgId           String    @map("org_id") @db.Uuid
+  name            String
+  hash            String    @unique
+  last4           String    @map("last_4")
+  scopes          String[]  @default([])
+  lastUsedAt      DateTime? @map("last_used_at")
+  revokedAt       DateTime? @map("revoked_at")
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("ApiKeyCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([orgId, revokedAt])
+  @@map("api_keys")
+}
