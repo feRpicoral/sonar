@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 import { Toaster } from "sonner";
 
 import { ThemeProvider } from "@/components/theme-provider";
+import { PostHogProvider } from "@/lib/observability/posthog-provider";
 
 export const metadata: Metadata = {
   title: "Sonar — AI sales enablement workspace",
@@ -27,8 +28,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           enableSystem
           disableTransitionOnChange
         >
-          {children}
-          <Toaster richColors closeButton />
+          <PostHogProvider>
+            {children}
+            <Toaster richColors closeButton />
+          </PostHogProvider>
         </ThemeProvider>
       </body>
     </html>
