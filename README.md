@@ -91,26 +91,30 @@ flowchart LR
 
 ## Local development
 
+Requires Node 22 (see `.nvmrc`) and Yarn 4 via Corepack. Enable Corepack once with `corepack enable`; it picks the Yarn version pinned in `package.json#packageManager`.
+
 ```bash
 cp .env.example .env.local
 # Fill in: Supabase URL + anon key + service role key + database URLs,
 # Anthropic, Groq, Tavily, Stripe (test mode), Resend.
 # Optional: Sentry, PostHog, LangSmith.
 
-npm install
-npx prisma migrate dev --name init
-psql "$DIRECT_URL" -f prisma/sql/setup.sql
-npx prisma db seed
-npm run dev
+nvm use                                       # picks 22 from .nvmrc
+corepack enable                               # one-time, lets yarn 4 self-install
+yarn install                                  # postinstall runs prisma generate
+yarn prisma migrate dev --name init
+psql "$DIRECT_URL" -f prisma/sql/setup.sql    # or paste into the Supabase SQL editor
+yarn prisma db seed
+yarn dev
 ```
 
 Scripts:
 
 ```bash
-npm run typecheck   # tsc --noEmit
-npm run lint        # ESLint flat config
-npm run test        # Vitest
-npm run build       # Next.js production build
+yarn typecheck   # tsc --noEmit
+yarn lint        # ESLint flat config
+yarn test        # Vitest
+yarn build       # Next.js production build
 ```
 
 ## Project layout
