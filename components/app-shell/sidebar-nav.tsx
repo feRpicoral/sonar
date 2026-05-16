@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, LayoutGrid, Settings as SettingsIcon, Users } from "lucide-react";
+import { Activity, LayoutGrid, Settings as SettingsIcon, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -10,6 +10,7 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid, match: undefined },
   { href: "/leads", label: "Leads", icon: Users, match: "/leads" },
   { href: "/runs", label: "Runs", icon: Activity, match: "/runs" },
+  { href: "/trash", label: "Trash", icon: Trash2, match: "/trash" },
   { href: "/settings/members", label: "Settings", icon: SettingsIcon, match: "/settings" },
 ] as const;
 
