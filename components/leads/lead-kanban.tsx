@@ -19,11 +19,11 @@ export function LeadKanban({ leads }: { leads: LeadCardProps[] }) {
   for (const lead of leads) grouped[lead.status].push(lead);
 
   return (
-    <div className="flex h-full gap-3 overflow-x-auto px-8 pb-8">
+    <div className="flex h-full gap-3 overflow-x-auto px-4 pb-8 sm:px-8">
       {COLUMNS.map((col) => {
         const items = grouped[col.status];
         return (
-          <div key={col.status} className="flex w-72 shrink-0 flex-col">
+          <div key={col.status} className="flex w-64 shrink-0 flex-col sm:w-72">
             <header className="mb-3 flex items-center justify-between">
               <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                 {col.label}

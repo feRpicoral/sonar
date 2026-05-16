@@ -129,8 +129,8 @@ export function EmailSplitView(props: EmailSplitViewProps) {
   };
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="border-border flex items-center justify-between border-b px-8 py-4">
+    <div className="flex min-h-screen flex-col lg:h-screen">
+      <header className="border-border flex flex-col gap-3 border-b px-4 py-4 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
           <Link
             href={`/leads/${leadId}`}
@@ -223,8 +223,8 @@ export function EmailSplitView(props: EmailSplitViewProps) {
         </div>
       </header>
 
-      <div className="grid flex-1 grid-cols-1 overflow-hidden lg:grid-cols-2">
-        <section className="border-border overflow-y-auto border-b px-8 py-6 lg:border-r lg:border-b-0">
+      <div className="grid flex-1 grid-cols-1 lg:grid-cols-2 lg:overflow-hidden">
+        <section className="border-border border-b px-4 py-6 sm:px-8 lg:overflow-y-auto lg:border-r lg:border-b-0">
           <div className="mx-auto max-w-2xl space-y-4">
             <div className="text-muted-foreground space-y-1 text-xs">
               <div>
@@ -259,7 +259,7 @@ export function EmailSplitView(props: EmailSplitViewProps) {
           </div>
         </section>
 
-        <section className="overflow-y-auto px-8 py-6">
+        <section className="px-4 py-6 sm:px-8 lg:overflow-y-auto">
           <div className="mx-auto max-w-2xl">
             <header className="mb-4 flex items-center justify-between">
               <h2 className="text-sm font-medium">Source transcript</h2>

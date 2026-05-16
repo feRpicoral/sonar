@@ -35,15 +35,15 @@ export default async function LeadsPage({
   });
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="border-border flex items-center justify-between border-b px-8 pt-10 pb-6">
+    <div className="flex min-h-screen flex-col lg:h-screen">
+      <header className="border-border flex flex-col gap-4 border-b px-4 pt-6 pb-4 sm:px-8 sm:pt-10 sm:pb-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
           <p className="text-muted-foreground mt-0.5 text-sm">
             {leads.length} {leads.length === 1 ? "lead" : "leads"}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <LeadFilterTabs />
           <CreateLeadDialog />
         </div>
