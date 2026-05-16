@@ -8,7 +8,8 @@ import { getPrisma } from "@/lib/db/client";
 import { asRunId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
 
-export const maxDuration = 300;
+// Match the UI route; Vercel Hobby caps at 60s.
+export const maxDuration = 60;
 
 const startSchema = z.object({
   leadId: z.string().uuid(),

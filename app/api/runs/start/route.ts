@@ -8,9 +8,9 @@ import { getPrisma } from "@/lib/db/client";
 import { asRunId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
 
-// Pro-tier max; agent runs typically finish in 30-60s. Trim down if you're on
-// Hobby (limit is 60s) - orchestration still works in dev.
-export const maxDuration = 300;
+// Vercel Hobby caps at 60s. Most agent runs finish in 15-25s. Bump to 300
+// here and in the Vercel project settings if you upgrade to Pro.
+export const maxDuration = 60;
 
 const bodySchema = z.object({
   leadId: z.string().uuid(),
