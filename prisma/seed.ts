@@ -1,13 +1,14 @@
-// Demo seed - creates a workspace populated with realistic-looking leads,
-// calls, agent runs, and audit entries for Loom recording and screenshots.
+// Demo seed - populates the workspace owned by a real Supabase auth user
+// with sample leads, a call with transcript, and audit entries. The user id
+// comes from the DEMO_USER_ID env var, or an interactive prompt if unset.
 //
-// Run after `prisma migrate dev` and applying `prisma/sql/setup.sql`:
-//   yarn prisma db seed
+//   yarn prisma db seed                          # interactive prompt
+//   DEMO_USER_ID=<uuid> yarn prisma db seed      # non-interactive
 //
-// Notes:
-// - User mirror is created directly (in production the Supabase auth trigger
-//   keeps `public.users` in sync; here we synthesize a demo user).
-// - Transcripts and agent outputs are synthetic but plausible.
+// Find the UUID at: Supabase > Authentication > Users.
+
+import { stdin, stdout } from "node:process";
+import readline from "node:readline/promises";
 
 import { loadEnvConfig } from "@next/env";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -22,7 +23,29 @@ if (!databaseUrl) {
   );
 }
 
-const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveDemoUserId(): Promise<string> {
+  const fromEnv = process.env.DEMO_USER_ID?.trim();
+  if (fromEnv) {
+    if (!UUID_REGEX.test(fromEnv)) {
+      throw new Error(`DEMO_USER_ID is not a valid UUID: ${fromEnv}`);
+    }
+    return fromEnv;
+  }
+
+  const rl = readline.createInterface({ input: stdin, output: stdout });
+  try {
+    console.log("\nFind your user id at: Supabase > Authentication > Users\n");
+    const answer = (await rl.question("Demo user id (UUID): ")).trim();
+    if (!UUID_REGEX.test(answer)) {
+      throw new Error(`Not a valid UUID: ${answer || "(empty)"}`);
+    }
+    return answer;
+  } finally {
+    rl.close();
+  }
+}
 
 const adapter = new PrismaPg({ connectionString: databaseUrl });
 const prisma = new PrismaClient({ adapter });
@@ -139,12 +162,13 @@ const SAMPLE_TRANSCRIPT_SEGMENTS = [
 ];
 
 async function main() {
+  const demoUserId = await resolveDemoUserId();
   console.log("Seeding demo workspace…");
 
   const user = await prisma.user.upsert({
-    where: { id: DEMO_USER_ID },
+    where: { id: demoUserId },
     create: {
-      id: DEMO_USER_ID,
+      id: demoUserId,
       email: "demo@sonar.dev",
       name: "Demo Rep",
       avatarUrl: null,
