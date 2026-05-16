@@ -8,7 +8,7 @@
 // Find the UUID at: Supabase > Authentication > Users.
 
 import { stdin, stdout } from "node:process";
-import readline from "node:readline/promises";
+import readline from "node:readline";
 
 import { loadEnvConfig } from "@next/env";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -34,17 +34,29 @@ async function resolveDemoUserId(): Promise<string> {
     return fromEnv;
   }
 
-  const rl = readline.createInterface({ input: stdin, output: stdout });
-  try {
-    console.log("\nFind your user id at: Supabase > Authentication > Users\n");
-    const answer = (await rl.question("Demo user id (UUID): ")).trim();
-    if (!UUID_REGEX.test(answer)) {
-      throw new Error(`Not a valid UUID: ${answer || "(empty)"}`);
-    }
-    return answer;
-  } finally {
-    rl.close();
+  console.log("\nFind your user id at: Supabase > Authentication > Users\n");
+
+  // Plain callback-style readline. The promises wrapper occasionally hangs
+  // when invoked through `prisma db seed` because of how Prisma spawns the
+  // child process; the callback API behaves consistently.
+  const answer: string = await new Promise((resolve, reject) => {
+    const rl = readline.createInterface({
+      input: stdin,
+      output: stdout,
+      terminal: true,
+    });
+    rl.question("Demo user id (UUID): ", (input) => {
+      rl.close();
+      resolve(input);
+    });
+    rl.on("error", reject);
+  });
+
+  const trimmed = answer.trim();
+  if (!UUID_REGEX.test(trimmed)) {
+    throw new Error(`Not a valid UUID: ${trimmed || "(empty)"}`);
   }
+  return trimmed;
 }
 
 const adapter = new PrismaPg({ connectionString: databaseUrl });
@@ -161,10 +173,16 @@ const SAMPLE_TRANSCRIPT_SEGMENTS = [
   },
 ];
 
-async function main() {
-  const demoUserId = await resolveDemoUserId();
-  console.log("Seeding demo workspace…");
+function step(message: string): void {
+  console.log(`  > ${message}`);
+}
 
+async function main() {
+  step("Resolving demo user id");
+  const demoUserId = await resolveDemoUserId();
+  step(`Using user id ${demoUserId}`);
+
+  step("Upserting user mirror in public.users");
   const user = await prisma.user.upsert({
     where: { id: demoUserId },
     create: {
@@ -175,22 +193,29 @@ async function main() {
     },
     update: { email: "demo@sonar.dev", name: "Demo Rep" },
   });
+  step(`User row ok (${user.id})`);
 
+  step("Upserting organization 'sonar-demo'");
   const org = await prisma.organization.upsert({
     where: { slug: "sonar-demo" },
     create: { name: "Sonar Demo Co", slug: "sonar-demo" },
     update: {},
   });
+  step(`Organization ok (${org.id})`);
 
+  step("Upserting membership (admin)");
   await prisma.membership.upsert({
     where: { orgId_userId: { orgId: org.id, userId: user.id } },
     create: { orgId: org.id, userId: user.id, role: "ADMIN" },
     update: { role: "ADMIN" },
   });
+  step("Membership ok");
 
-  // Wipe and re-create leads (idempotent demo).
-  await prisma.lead.deleteMany({ where: { orgId: org.id } });
+  step("Clearing existing leads (and cascading calls)");
+  const deleted = await prisma.lead.deleteMany({ where: { orgId: org.id } });
+  step(`Deleted ${deleted.count} existing leads`);
 
+  step(`Creating ${LEADS.length} sample leads`);
   const leads = await Promise.all(
     LEADS.map((spec) =>
       prisma.lead.create({
@@ -206,11 +231,12 @@ async function main() {
       }),
     ),
   );
-  console.log(`  , ${leads.length} leads created`);
+  step(`Created ${leads.length} leads`);
 
   // Attach a sample call with transcript to the first lead so the demo flow
   // can immediately "Generate follow-up".
   const firstLead = leads[0]!;
+  step(`Attaching demo call to first lead (${firstLead.name})`);
   await prisma.call.create({
     data: {
       orgId: org.id,
@@ -222,8 +248,9 @@ async function main() {
       createdByUserId: user.id,
     },
   });
-  console.log("  , 1 call with transcript attached to Sarah Chen");
+  step("Call with transcript attached");
 
+  step("Writing audit log entries");
   await prisma.auditLog.createMany({
     data: [
       {
@@ -248,9 +275,9 @@ async function main() {
       })),
     ],
   });
-  console.log(`  , ${leads.length + 1} audit entries written`);
+  step(`Wrote ${leads.length + 1} audit entries`);
 
-  console.log("Done.");
+  console.log("\nSeed complete.");
 }
 
 main()
