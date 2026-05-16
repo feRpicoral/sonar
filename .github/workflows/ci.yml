@@ -16,11 +16,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: yarn
-      - run: corepack enable
+          node-version-file: ".nvmrc"
+
+      # Corepack must be enabled before yarn is invoked so it picks up the
+      # version pinned in package.json#packageManager. setup-node@v4's
+      # `cache: yarn` option probes the global yarn 1 before this step runs,
+      # which conflicts with packageManager pinning, so we cache yarn's
+      # store ourselves with actions/cache below.
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Yarn cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+          key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
       - run: yarn install --immutable
       - run: yarn typecheck
       - run: yarn lint
