@@ -239,6 +239,97 @@ const SAMPLE_TRANSCRIPT_SEGMENTS = [
   },
 ];
 
+// Plausible agent outputs for the seeded call. Mirrors what the live runner
+// would persist, so /dashboard, /runs, and the email approval split-view all
+// have something to show without spending Anthropic tokens.
+
+const SEED_RESEARCH = {
+  segment: "B2B SaaS, robotics manufacturing",
+  companySize: "200-500 employees",
+  signals: [
+    "Raised Series B funding in early 2026",
+    "Hiring three new SREs after the Series B round",
+    "Currently on Datadog with uneven adoption across the team",
+  ],
+  likelyPainPoints: [
+    "On-call burden after rapid team growth",
+    "Dashboard fragmentation, 10 to 15 minute incident triage",
+    "Tool sprawl as engineering scales",
+  ],
+  summary:
+    "Acme Robotics is a Series B robotics company expanding their SRE team. Their current observability stack is fragmented and incident triage is hurting morale.",
+};
+
+const SEED_ANALYSIS = {
+  topics: [
+    "observability tooling",
+    "on-call rotation",
+    "incident triage",
+    "budget signing authority",
+    "vendor evaluation",
+  ],
+  confirmedPainPoints: [
+    "10 to 15 minutes spent finding the right dashboard at incident time",
+    "On-call rotation is brutal after the recent SRE hiring",
+    "Datadog adoption is uneven across the team",
+  ],
+  objections: [] as string[],
+  actionItems: [
+    "Send proposal with pricing under $40K ARR (Sarah's sign-off limit)",
+    "Lead with time-to-value rather than feature checklist",
+  ],
+  sentiment: "positive" as const,
+  keyQuotes: [
+    {
+      text: "spend ten or fifteen minutes just figuring out which dashboard to open. That's the part that's killing morale.",
+      segmentIndex: 3,
+    },
+    {
+      text: "If we get to a $40K ARR price point I can probably make that happen without escalating.",
+      segmentIndex: 5,
+    },
+    { text: "Time-to-value is what'll make the call.", segmentIndex: 7 },
+  ],
+};
+
+const SEED_STRATEGY = {
+  nextStep: "proposal" as const,
+  urgency: "high" as const,
+  talkingPoints: [
+    "Anchor pricing under $40K ARR so Sarah can sign without Marcus",
+    "Lead with time-to-value, sub-60-second incident insight after install",
+    "Address the Honeycomb and Grafana Cloud comparison head-on with a unified incident page story",
+    "Frame the pitch around morale for the three new SRE hires",
+  ],
+  reasoning:
+    "Sarah is the decision maker under $40K ARR and gave us the exact ceiling. Pain is explicit and quantified. Active evaluation with two competitors named. Window is now while the SRE hiring momentum is fresh.",
+};
+
+const SEED_WRITER = {
+  subject: "Re: Acme observability, $39K with no dashboard sprawl",
+  body: `Hi Sarah,
+
+Thanks for the time yesterday. Three things from our chat that shaped this:
+
+1. You're losing 10 to 15 minutes per incident just to find the right dashboard. We bring that to under 60 seconds with unified incident pages, which would compound nicely against your three new SRE hires.
+
+2. Sub-$40K ARR works for us. I've put together a $39K per year proposal that includes onboarding sessions for the new team.
+
+3. On time-to-value: most teams get their first real signal during their first on-call shift after install. I can show you that workflow in a 20 minute screenshare next week if it helps.
+
+Proposal attached. Happy to walk Marcus through the cost story if useful.
+
+Demo Rep`,
+  citations: [
+    {
+      phrase: "10 to 15 minutes per incident just to find the right dashboard",
+      transcriptSegmentIndex: 3,
+    },
+    { phrase: "Sub-$40K ARR works for us", transcriptSegmentIndex: 5 },
+    { phrase: "On time-to-value", transcriptSegmentIndex: 7 },
+  ],
+};
+
 function step(message: string): void {
   console.log(`${pc.dim(">")} ${message}`);
 }
@@ -303,7 +394,7 @@ async function main(): Promise<void> {
 
   const firstLead = leads[0]!;
   step(`Attaching demo call to ${firstLead.name}`);
-  await prisma.call.create({
+  const call = await prisma.call.create({
     data: {
       orgId: org.id,
       leadId: firstLead.id,
@@ -315,6 +406,78 @@ async function main(): Promise<void> {
     },
   });
   step("Call with transcript attached");
+
+  step("Creating completed agent run with all four step outputs");
+  const runStartedAt = new Date(Date.now() - 30 * 60 * 1000);
+  const t = (offsetMs: number) => new Date(runStartedAt.getTime() + offsetMs);
+  const run = await prisma.agentRun.create({
+    data: {
+      orgId: org.id,
+      leadId: firstLead.id,
+      callId: call.id,
+      status: "AWAITING_APPROVAL",
+      state: {
+        research: SEED_RESEARCH,
+        analysis: SEED_ANALYSIS,
+        strategy: SEED_STRATEGY,
+        writer: SEED_WRITER,
+      } as never,
+      startedAt: runStartedAt,
+      completedAt: t(32_000),
+      createdByUserId: user.id,
+    },
+  });
+  await prisma.agentRunStep.createMany({
+    data: [
+      {
+        orgId: org.id,
+        runId: run.id,
+        node: "RESEARCH",
+        status: "COMPLETED",
+        output: SEED_RESEARCH as never,
+        startedAt: runStartedAt,
+        completedAt: t(5_000),
+      },
+      {
+        orgId: org.id,
+        runId: run.id,
+        node: "ANALYSIS",
+        status: "COMPLETED",
+        output: SEED_ANALYSIS as never,
+        startedAt: t(5_000),
+        completedAt: t(15_000),
+      },
+      {
+        orgId: org.id,
+        runId: run.id,
+        node: "STRATEGY",
+        status: "COMPLETED",
+        output: SEED_STRATEGY as never,
+        startedAt: t(15_000),
+        completedAt: t(22_000),
+      },
+      {
+        orgId: org.id,
+        runId: run.id,
+        node: "WRITER",
+        status: "COMPLETED",
+        output: SEED_WRITER as never,
+        startedAt: t(22_000),
+        completedAt: t(32_000),
+      },
+    ],
+  });
+  await prisma.emailDraft.create({
+    data: {
+      orgId: org.id,
+      runId: run.id,
+      subject: SEED_WRITER.subject,
+      body: SEED_WRITER.body,
+      citations: SEED_WRITER.citations as never,
+      status: "DRAFT",
+    },
+  });
+  step(`Run, four steps, and email draft created (awaiting approval)`);
 
   step("Writing audit log entries");
   await prisma.auditLog.createMany({

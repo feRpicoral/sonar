@@ -36,7 +36,7 @@ export default async function LeadsPage({
 
   return (
     <div className="flex h-screen flex-col">
-      <header className="border-border flex items-center justify-between border-b px-8 py-4">
+      <header className="border-border flex items-center justify-between border-b px-8 pt-10 pb-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
           <p className="text-muted-foreground mt-0.5 text-sm">

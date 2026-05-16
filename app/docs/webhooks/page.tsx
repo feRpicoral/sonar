@@ -99,7 +99,7 @@ function verifySonarSignature(rawBody, header, secret) {
     header.split(",").map((p) => p.split("="))
   );
   const t = Number(parts.t);
-  if (Math.abs(Math.floor(Date.now() / 1000) - t) / 300) return false;
+  if (Math.abs(Math.floor(Date.now() / 1000) - t) > 300) return false;
   const expected = createHmac("sha256", secret)
     .update(\`\${t}.\${rawBody}\`)
     .digest("hex");
@@ -115,7 +115,7 @@ function verifySonarSignature(rawBody, header, secret) {
 def verify_sonar_signature(raw_body: bytes, header: str, secret: str) -> bool:
     parts = dict(p.split("=") for p in header.split(","))
     t = int(parts["t"])
-    if abs(int(time.time()) - t) / 300:
+    if abs(int(time.time()) - t) > 300:
         return False
     expected = hmac.new(
         secret.encode(),
