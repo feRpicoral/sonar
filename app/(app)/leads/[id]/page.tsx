@@ -1,12 +1,14 @@
-import { ArrowLeft, ExternalLink, Mic } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { ArrowLeft, ExternalLink, FileAudio, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { UploadCallDialog } from "@/components/calls/upload-call-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { requireSessionOrOnboard } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/with-org";
+import { formatTimestamp } from "@/lib/transcription/whisper";
 
 function initials(s: string) {
   return (
@@ -45,6 +47,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       updatedAt: true,
       assignedTo: { select: { name: true, email: true, avatarUrl: true } },
       createdBy: { select: { name: true, email: true } },
+      calls: {
+        where: { deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          durationSec: true,
+          transcriptText: true,
+          createdAt: true,
+        },
+      },
     },
   });
 
@@ -85,10 +97,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <Badge variant="secondary" className="font-mono text-[10px]">
               {STATUS_LABELS[lead.status]}
             </Badge>
-            <Button size="sm" disabled className="gap-1.5">
-              <Mic className="h-3.5 w-3.5" />
-              Upload call
-            </Button>
+            <UploadCallDialog leadId={lead.id} />
           </div>
         </header>
 
@@ -119,12 +128,58 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-medium">Timeline</h2>
-          <div className="bg-card border-border grid place-items-center rounded-lg border border-dashed py-16">
-            <p className="text-muted-foreground font-mono text-xs">
-              calls + agent runs + emails land here in phase 3+
-            </p>
-          </div>
+          <header className="flex items-center justify-between">
+            <h2 className="text-sm font-medium">Calls</h2>
+            <span className="text-muted-foreground font-mono text-xs">
+              {lead.calls.length} {lead.calls.length === 1 ? "recording" : "recordings"}
+            </span>
+          </header>
+          {lead.calls.length === 0 ? (
+            <div className="bg-card border-border grid place-items-center rounded-lg border border-dashed py-16">
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="bg-muted flex h-10 w-10 items-center justify-center rounded-full">
+                  <FileAudio className="text-muted-foreground h-4 w-4" />
+                </div>
+                <p className="text-muted-foreground text-sm">
+                  Upload a recording to get a transcript with timestamps.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <ul className="bg-card border-border overflow-hidden rounded-lg border">
+              {lead.calls.map((call) => (
+                <li key={call.id} className="border-border border-b last:border-b-0">
+                  <Link
+                    href={`/leads/${id}/calls/${call.id}`}
+                    className="hover:bg-muted/30 flex items-center justify-between px-4 py-3 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-md">
+                        {call.transcriptText ? (
+                          <FileAudio className="text-muted-foreground h-4 w-4" />
+                        ) : (
+                          <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">
+                          {call.transcriptText ? "Transcript ready" : "Transcribing…"}
+                        </div>
+                        <div className="text-muted-foreground text-xs">
+                          {formatDistanceToNow(call.createdAt, { addSuffix: true })}
+                        </div>
+                      </div>
+                    </div>
+                    {call.durationSec && (
+                      <span className="text-muted-foreground font-mono text-xs">
+                        {formatTimestamp(call.durationSec)}
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
     </div>

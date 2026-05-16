@@ -139,3 +139,26 @@ CREATE INDEX IF NOT EXISTS lead_embeddings_org_idx
 CREATE INDEX IF NOT EXISTS lead_embeddings_hnsw
   ON public.lead_embeddings
   USING hnsw (embedding vector_cosine_ops);
+
+-- ─────────────────────────────────────────────────────────────
+-- Storage bucket for call audio
+--
+-- Private bucket — app generates signed upload/download URLs via the admin
+-- client (lib/supabase/admin.ts), so we don't need permissive RLS on storage.
+-- ─────────────────────────────────────────────────────────────
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'call-audio',
+  'call-audio',
+  false,
+  104857600, -- 100 MB
+  ARRAY[
+    'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/wav', 'audio/x-wav',
+    'audio/webm', 'audio/ogg', 'audio/flac', 'audio/x-m4a', 'audio/m4a'
+  ]
+)
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
