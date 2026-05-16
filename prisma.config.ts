@@ -16,5 +16,8 @@ if (!databaseUrl) {
 export default defineConfig({
   schema: "prisma/schema.prisma",
   datasource: { url: databaseUrl },
-  migrations: { path: "prisma/migrations" },
+  migrations: {
+    path: "prisma/migrations",
+    seed: "tsx prisma/seed.ts",
+  },
 });
