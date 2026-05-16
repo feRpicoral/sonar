@@ -18,13 +18,13 @@ export default function AuthenticationDocsPage() {
       <H1>Authentication</H1>
       <Lead>
         Sonar API uses bearer tokens. Generate a key per integration with the minimum scope required
-        — keys are workspace-scoped and never cross orgs.
+        - keys are workspace-scoped and never cross orgs.
       </Lead>
 
       <H2>Generating a key</H2>
       <P>
-        Go to <InlineCode>Settings → API keys</InlineCode> and click <strong>Create API key</strong>
-        . Pick a descriptive name and only the scopes you need. The plaintext key is shown once —
+        Go to <InlineCode>Settings / API keys</InlineCode> and click <strong>Create API key</strong>
+        . Pick a descriptive name and only the scopes you need. The plaintext key is shown once -
         copy it immediately. If you lose it, revoke and re-issue.
       </P>
 

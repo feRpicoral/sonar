@@ -10,7 +10,7 @@ import {
 describe("ResearchOutputSchema", () => {
   it("accepts a minimal valid output", () => {
     const ok = ResearchOutputSchema.safeParse({
-      segment: "B2B SaaS — observability",
+      segment: "B2B SaaS - observability",
       signals: ["raised $30M Series B"],
       likelyPainPoints: ["data warehouse sprawl"],
       summary: "Acme is a Series B observability platform.",
@@ -64,7 +64,7 @@ describe("WriterOutputSchema", () => {
   it("requires a non-negative segmentIndex for citations", () => {
     const bad = WriterOutputSchema.safeParse({
       subject: "Following up on Acme",
-      body: "Jane —\n\nGreat chat...",
+      body: "Jane -\n\nGreat chat...",
       citations: [{ phrase: "Q4 hiring spree", transcriptSegmentIndex: -1 }],
     });
     expect(bad.success).toBe(false);

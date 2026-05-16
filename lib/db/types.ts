@@ -1,4 +1,4 @@
-// Branded ID types — nominal typing on top of string to prevent ID mix-ups
+// Branded ID types - nominal typing on top of string to prevent ID mix-ups
 // at call sites. Constructors should only run at trusted boundaries
 // (post-auth session validation, post-API-key verification, post-Zod-parse).
 

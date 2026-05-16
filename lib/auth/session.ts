@@ -47,9 +47,9 @@ export async function getSession(): Promise<Session | null> {
  * Like `requireSession`, but if the user is authenticated without a usable
  * org claim, route them through onboarding instead of bouncing to login.
  *
- * - No auth user → /login
- * - User, no memberships → /create-org
- * - User, memberships but stale/missing active_org_id → repair the claim
+ * - No auth user > /login
+ * - User, no memberships > /create-org
+ * - User, memberships but stale/missing active_org_id > repair the claim
  *   to the oldest membership, then return the session.
  */
 export async function requireSessionOrOnboard(): Promise<Session> {

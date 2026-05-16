@@ -4,7 +4,7 @@ const KEY_PREFIX = "sk_";
 
 /**
  * Generate a new API key (the plaintext value shown to the user once).
- * Format: `sk_<base64url(32 bytes)>` — ~43 chars after prefix.
+ * Format: `sk_<base64url(32 bytes)>` - ~43 chars after prefix.
  */
 export function generateApiKey(): { plaintext: string; last4: string } {
   const raw = randomBytes(32).toString("base64url");
@@ -14,7 +14,7 @@ export function generateApiKey(): { plaintext: string; last4: string } {
 
 /**
  * Hash an API key for storage / verification. SHA-256 is adequate for
- * high-entropy random tokens — bcrypt-style slow hashes are aimed at low-
+ * high-entropy random tokens - bcrypt-style slow hashes are aimed at low-
  * entropy human passwords.
  */
 export function hashApiKey(plaintext: string): string {

@@ -10,7 +10,7 @@ function requireEnv(name: string): string {
 /**
  * Server-side Supabase client for Server Components, Route Handlers, and
  * Server Actions. Reads cookies from `next/headers`. Cookie writes are
- * best-effort — Server Components cannot mutate cookies, so the actual
+ * best-effort - Server Components cannot mutate cookies, so the actual
  * session refresh happens in the root middleware.
  */
 export async function createServerSupabase() {

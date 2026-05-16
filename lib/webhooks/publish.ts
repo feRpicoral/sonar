@@ -18,7 +18,7 @@ export type WebhookEventType = (typeof WEBHOOK_EVENTS)[number];
 /**
  * Fan out an event to every active webhook subscription that matches.
  * Deliveries run in parallel; failures are recorded in WebhookDelivery but
- * don't propagate — the caller's mutation should not roll back if a webhook
+ * don't propagate - the caller's mutation should not roll back if a webhook
  * subscriber is misconfigured.
  */
 export async function publishEvent(

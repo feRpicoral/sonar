@@ -1,4 +1,4 @@
-// Demo seed — creates a workspace populated with realistic-looking leads,
+// Demo seed - creates a workspace populated with realistic-looking leads,
 // calls, agent runs, and audit entries for Loom recording and screenshots.
 //
 // Run after `prisma migrate dev` and applying `prisma/sql/setup.sql`:
@@ -101,7 +101,7 @@ const SAMPLE_TRANSCRIPT_SEGMENTS = [
   {
     start: 22.3,
     end: 38.7,
-    text: "That's super common. What does your current incident workflow look like — like when something fires at 2am, who picks it up and what do they look at first?",
+    text: "That's super common. What does your current incident workflow look like - like when something fires at 2am, who picks it up and what do they look at first?",
   },
   {
     start: 39.0,
@@ -111,7 +111,7 @@ const SAMPLE_TRANSCRIPT_SEGMENTS = [
   {
     start: 58.6,
     end: 72.3,
-    text: "Got it. And in terms of budget — are you the decision maker here or is this something Marcus signs off on?",
+    text: "Got it. And in terms of budget - are you the decision maker here or is this something Marcus signs off on?",
   },
   {
     start: 72.5,
@@ -121,7 +121,7 @@ const SAMPLE_TRANSCRIPT_SEGMENTS = [
   {
     start: 85.1,
     end: 102.0,
-    text: "Okay, that's helpful. One more — are you evaluating other vendors right now or is this still in scoping mode?",
+    text: "Okay, that's helpful. One more - are you evaluating other vendors right now or is this still in scoping mode?",
   },
   {
     start: 102.2,
@@ -174,7 +174,7 @@ async function main() {
       }),
     ),
   );
-  console.log(`  · ${leads.length} leads created`);
+  console.log(`  , ${leads.length} leads created`);
 
   // Attach a sample call with transcript to the first lead so the demo flow
   // can immediately "Generate follow-up".
@@ -190,7 +190,7 @@ async function main() {
       createdByUserId: user.id,
     },
   });
-  console.log("  · 1 call with transcript attached to Sarah Chen");
+  console.log("  , 1 call with transcript attached to Sarah Chen");
 
   await prisma.auditLog.createMany({
     data: [
@@ -216,7 +216,7 @@ async function main() {
       })),
     ],
   });
-  console.log(`  · ${leads.length + 1} audit entries written`);
+  console.log(`  , ${leads.length + 1} audit entries written`);
 
   console.log("Done.");
 }

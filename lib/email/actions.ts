@@ -43,7 +43,7 @@ export async function approveAndSendEmailAction(
   });
 
   // Demo: send to the rep's own inbox. In production we'd add lead.email and
-  // route to that — keeps the test inbox decoupled from real customers.
+  // route to that - keeps the test inbox decoupled from real customers.
   const recipient = session.email;
   if (!recipient) {
     return { error: "No recipient email available" };
@@ -142,7 +142,7 @@ export async function updateEmailDraftAction(
     data: {
       subject: subject.trim(),
       body: body.trim(),
-      // User-edited body invalidates auto-generated citations — clear them so
+      // User-edited body invalidates auto-generated citations - clear them so
       // we don't show phantom highlights pointing at wrong segments.
       citations: [] as never,
     },

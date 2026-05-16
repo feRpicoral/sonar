@@ -76,7 +76,7 @@ export function CreateWebhookDialog() {
             <DialogHeader>
               <DialogTitle>Webhook created</DialogTitle>
               <DialogDescription>
-                Copy the signing secret now — this is the only time it will be shown. Your endpoint
+                Copy the signing secret now - this is the only time it will be shown. Your endpoint
                 uses it to verify the <code className="font-mono text-xs">X-Sonar-Signature</code>{" "}
                 header.
               </DialogDescription>

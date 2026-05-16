@@ -1,4 +1,4 @@
-# Prisma — Sonar database
+# Prisma - Sonar database
 
 ## Initial setup
 
@@ -35,11 +35,11 @@
 
 Three layers (see `lib/db/with-org.ts` and `lib/db/types.ts`):
 
-1. **Branded TS types** — domain code receives `OrgId`, not `string`.
-2. **Prisma `$extends`** — `getDb(orgId)` auto-injects `where.orgId` / `data.orgId` on
+1. **Branded TS types** - domain code receives `OrgId`, not `string`.
+2. **Prisma `$extends`** - `getDb(orgId)` auto-injects `where.orgId` / `data.orgId` on
    all multi-tenant operations.
-3. **Postgres RLS** — `prisma/sql/setup.sql` enables RLS on every tenant table and
+3. **Postgres RLS** - `prisma/sql/setup.sql` enables RLS on every tenant table and
    policies queries via `public.is_member_of(org_id)`.
 
 Non-tenant tables (`User`, `Organization`, `Membership`, `ProcessedStripeEvent`) are
-queried via the base `getPrisma()` client — middleware does not inject into these.
+queried via the base `getPrisma()` client - middleware does not inject into these.

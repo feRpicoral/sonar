@@ -53,7 +53,7 @@ export default async function ApiKeysPage() {
         <div className="bg-card border-border overflow-hidden rounded-lg border">
           <header className="border-border border-b px-4 py-2">
             <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-              {active.length} active · {keys.length - active.length} revoked
+              {active.length} active , {keys.length - active.length} revoked
             </h3>
           </header>
           {keys.map((key) => (

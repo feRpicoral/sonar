@@ -59,9 +59,9 @@ export default async function CallDetailPage({
               {call.durationSec != null && (
                 <span className="font-mono text-xs">{formatTimestamp(call.durationSec)}</span>
               )}
-              {call.durationSec != null && <span>·</span>}
+              {call.durationSec != null && <span>,</span>}
               <span>{call.createdAt.toISOString().slice(0, 10)}</span>
-              <span>·</span>
+              <span>,</span>
               <span>uploaded by {call.createdBy.name ?? call.createdBy.email}</span>
             </div>
           </div>

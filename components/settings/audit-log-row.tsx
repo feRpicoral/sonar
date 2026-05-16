@@ -75,7 +75,7 @@ export function AuditLogRow({ action, actor, targetType, metadata, createdAt }: 
         </p>
         <p className="text-muted-foreground font-mono text-[10px]">
           {action}
-          {targetType && ` · ${targetType}`}
+          {targetType && ` , ${targetType}`}
         </p>
       </div>
       <span className="text-muted-foreground font-mono text-[10px] whitespace-nowrap tabular-nums">

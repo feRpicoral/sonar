@@ -1,12 +1,12 @@
 <!-- BEGIN:nextjs-agent-rules -->
 
-# Next.js 16 — read before coding
+# Next.js 16 - read before coding
 
 This project runs on **Next.js 16**, which has breaking changes from many agents' training data. APIs, conventions, and file structure may differ. Read the relevant guides in `node_modules/next/dist/docs/` before writing code. Heed deprecation notices.
 
 <!-- END:nextjs-agent-rules -->
 
-# Sonar — project rules
+# Sonar - project rules
 
 ## What this is
 
@@ -16,9 +16,9 @@ The full implementation plan is at `/Users/fpicoral/.claude/plans/users-fpicoral
 
 ## Architecture pillars
 
-1. **Multi-agent with state** — LangGraph nodes return structured Zod outputs, never free text. State carries `orgId` / `userId`. Postgres checkpointer enables resume on `interrupt()`. Inngest is the executor; Supabase Realtime is the UI transport.
-2. **Audio with citations** — Groq Whisper Large v3 with VAD pre-trim. Segments + timestamps. Writer node outputs both prose and structured citations that link to transcript moments.
-3. **Multi-tenant** — Three layers: branded `OrgId` TypeScript types + Prisma `$extends` middleware + Postgres RLS. Every business table has `orgId` indexed.
+1. **Multi-agent with state** - LangGraph nodes return structured Zod outputs, never free text. State carries `orgId` / `userId`. Postgres checkpointer enables resume on `interrupt()`. Inngest is the executor; Supabase Realtime is the UI transport.
+2. **Audio with citations** - Groq Whisper Large v3 with VAD pre-trim. Segments + timestamps. Writer node outputs both prose and structured citations that link to transcript moments.
+3. **Multi-tenant** - Three layers: branded `OrgId` TypeScript types + Prisma `$extends` middleware + Postgres RLS. Every business table has `orgId` indexed.
 
 ## Code rules
 
@@ -28,14 +28,14 @@ The full implementation plan is at `/Users/fpicoral/.claude/plans/users-fpicoral
 - Server-only by default. Mark client components with `"use client"`. Server Actions for mutations where it makes sense.
 - LLM outputs validated by Zod before persisting. No free-text agent outputs.
 - Audit-loggable mutations call `auditLog.write(...)` in the same transaction.
-- Conventional Commits 1.0.0. Header line only — no body, no footer, no co-author trailers.
+- Conventional Commits 1.0.0. Header line only - no body, no footer, no co-author trailers.
 - No comments that restate code. Comment business rules, edge cases, non-obvious constraints only.
 - Empty / loading / error states on every list view. Skeletons match content shape.
 
 ## Stack reference
 
 - **UI**: Tailwind v4 + shadcn/ui (zinc base + violet accent), Geist Sans/Mono, Lucide icons, Sonner, next-themes.
-- **Motion**: `motion` package (formerly framer-motion). Sparse — agent cards + writer cursor + toasts only.
+- **Motion**: `motion` package (formerly framer-motion). Sparse - agent cards + writer cursor + toasts only.
 - **ORM**: Prisma + `getDb(orgId)` extension.
 - **Auth**: Supabase Auth with `active_org_id` JWT claim.
 - **DB**: Supabase Postgres with pgvector. RLS enabled on all multi-tenant tables.
@@ -50,13 +50,13 @@ The full implementation plan is at `/Users/fpicoral/.claude/plans/users-fpicoral
 
 ## Design language
 
-- **Typography** — Geist Sans for UI, Geist Mono for transcripts / timestamps / code / API key prefixes.
-- **Accent** — violet-600 used sparingly: primary buttons, active states, agent "running" pulses, focus rings.
-- **Status colors** — emerald (success), amber (in-progress), rose (failed).
-- **Density** — 16px base. Generous whitespace. Hairline 1px borders. No shadows except popovers / modals.
-- **Motion** — stagger 60ms slide-up on agent step cards. Defaults elsewhere.
-- **Dark mode** — first-class via `next-themes`, system default.
-- **References** — Linear (information density), Resend (typography), Vercel dashboard (tables), Attio (B2B CRM aesthetic).
+- **Typography** - Geist Sans for UI, Geist Mono for transcripts / timestamps / code / API key prefixes.
+- **Accent** - violet-600 used sparingly: primary buttons, active states, agent "running" pulses, focus rings.
+- **Status colors** - emerald (success), amber (in-progress), rose (failed).
+- **Density** - 16px base. Generous whitespace. Hairline 1px borders. No shadows except popovers / modals.
+- **Motion** - stagger 60ms slide-up on agent step cards. Defaults elsewhere.
+- **Dark mode** - first-class via `next-themes`, system default.
+- **References** - Linear (information density), Resend (typography), Vercel dashboard (tables), Attio (B2B CRM aesthetic).
 
 ## Folder map
 

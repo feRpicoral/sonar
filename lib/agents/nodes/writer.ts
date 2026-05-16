@@ -25,7 +25,7 @@ export async function writerNode(input: WriterInput): Promise<WriterOutput> {
     : "";
 
   const feedbackBlock = input.feedback
-    ? `\nReviewer feedback to incorporate (the previous draft did not satisfy these — adjust accordingly):\n${input.feedback}\n`
+    ? `\nReviewer feedback to incorporate (the previous draft did not satisfy these - adjust accordingly):\n${input.feedback}\n`
     : "";
 
   const userPrompt = `Prospect contact: ${input.leadName}
@@ -37,7 +37,7 @@ ${JSON.stringify(input.research, null, 2)}
 ${
   input.analysis
     ? `Call analysis:\n${JSON.stringify(input.analysis, null, 2)}`
-    : "Call analysis: (no recorded call — write a research-based outreach)"
+    : "Call analysis: (no recorded call - write a research-based outreach)"
 }
 
 Recommended strategy:

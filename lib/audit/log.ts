@@ -5,7 +5,7 @@ import type { OrgId, UserId } from "@/lib/db/types";
 
 /**
  * Canonical audit action vocabulary. New mutating endpoints must register here
- * — keeps the activity UI filter and event publisher in lockstep.
+ * - keeps the activity UI filter and event publisher in lockstep.
  */
 export type AuditAction =
   | "org.created"

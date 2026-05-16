@@ -83,7 +83,7 @@ export async function transcribeCallAction(callId: string): Promise<TranscribeRe
     select: { id: true, leadId: true, audioPath: true, transcriptText: true },
   });
   if (!call) return { error: "Call not found" };
-  if (call.transcriptText) return { ok: true }; // already done — idempotent
+  if (call.transcriptText) return { ok: true }; // already done - idempotent
 
   const audio = await downloadCallAudio(call.audioPath);
   const result = await transcribeAudio(audio, { filename: `${call.id}.bin` });

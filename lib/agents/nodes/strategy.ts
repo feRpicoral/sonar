@@ -24,7 +24,7 @@ ${JSON.stringify(input.research, null, 2)}
 ${
   input.analysis
     ? `Call analysis:\n${JSON.stringify(input.analysis, null, 2)}`
-    : "Call analysis: (no recorded call yet — strategy must rely on research only)"
+    : "Call analysis: (no recorded call yet - strategy must rely on research only)"
 }
 
 Recommend the next step by calling save_strategy.`;

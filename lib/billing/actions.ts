@@ -74,7 +74,7 @@ export async function openPortalAction(): Promise<void> {
     select: { stripeCustomerId: true },
   });
   if (!org?.stripeCustomerId) {
-    throw new Error("No Stripe customer yet — upgrade first");
+    throw new Error("No Stripe customer yet - upgrade first");
   }
 
   const portal = await stripe.billingPortal.sessions.create({

@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   }
 
   // API-created leads need a creator. We attribute to the first admin in the
-  // workspace — keeps audit trail intact even when the caller is a service.
+  // workspace - keeps audit trail intact even when the caller is a service.
   const prisma = getPrisma();
   const admin = await prisma.membership.findFirst({
     where: { orgId: auth.auth.orgId, role: "ADMIN" },

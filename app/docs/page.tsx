@@ -5,7 +5,7 @@ export default function DocsOverviewPage() {
     <article>
       <H1>Sonar API</H1>
       <Lead>
-        Programmatic access to your sales pipeline — leads, calls, agent runs, and webhooks. REST
+        Programmatic access to your sales pipeline - leads, calls, agent runs, and webhooks. REST
         over HTTPS, JSON in / JSON out, scoped API keys.
       </Lead>
 
@@ -13,7 +13,7 @@ export default function DocsOverviewPage() {
       <CodeBlock>https://sonar.vercel.app/api/v1</CodeBlock>
 
       <H2>Quickstart</H2>
-      <P>Generate an API key in Settings → API keys, then:</P>
+      <P>Generate an API key in Settings / API keys, then:</P>
       <CodeBlock language="bash">{`curl -H "Authorization: Bearer sk_..." \\
   https://sonar.vercel.app/api/v1/leads`}</CodeBlock>
 
@@ -27,7 +27,7 @@ export default function DocsOverviewPage() {
 
       <H3>Idempotency</H3>
       <P>
-        POST endpoints create new resources every call — there&apos;s no idempotency-key header yet.
+        POST endpoints create new resources every call - there&apos;s no idempotency-key header yet.
         Re-running the same payload will create duplicate rows.
       </P>
 

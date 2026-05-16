@@ -8,20 +8,28 @@ const PILLARS = [
     icon: Sparkles,
     title: "Multi-agent with state",
     description:
-      "LangGraph-style sequential nodes (research / analysis / strategy / writer), each returning Zod-validated structured output. Human-in-the-loop interrupt for email approval, with re-runnable writer step.",
+      "Four sequential nodes (research, analysis, strategy, writer), each returning Zod-validated structured output. Run pauses at the writer step for human approval, with re-runnable writer only.",
   },
   {
     icon: Mic,
     title: "Audio with citations",
     description:
-      "Groq Whisper Large v3 transcribes calls in seconds. The writer agent emits citations linking email phrases back to specific transcript segments — hover to verify, click to jump.",
+      "Groq Whisper Large v3 transcribes calls with segment timestamps. The writer node emits citations linking email phrases back to specific transcript segments. Hover to verify, click to jump.",
   },
   {
     icon: ShieldCheck,
     title: "Multi-tenant B2B",
     description:
-      "Three layers of tenant isolation: branded TypeScript IDs at call sites, Prisma $extends middleware injecting orgId, Postgres RLS as defense in depth. Stripe billing, scoped API keys, HMAC webhooks, full audit log.",
+      "Three layers of tenant isolation: branded TypeScript IDs at call sites, Prisma $extends middleware that auto-injects orgId, and Postgres RLS as a backstop. Stripe billing, scoped API keys, HMAC webhooks, full audit log.",
   },
+];
+
+const STEPS = [
+  "Research. Tavily web search plus Claude Haiku 4.5 produces a structured prospect profile (segment, signals, likely pain points).",
+  "Transcription. Groq Whisper Large v3 returns segments with timestamps. Skipped if no audio is attached.",
+  "Analysis. Claude Sonnet 4.6 extracts topics, confirmed pain points, objections, action items, sentiment, and key quotes. Each quote carries the index of its source segment.",
+  "Strategy. Claude Sonnet 4.6 picks a next step (follow-up, demo, proposal, nurture), an urgency, and 3 to 5 specific talking points.",
+  "Writer. Claude Sonnet 4.6 drafts a 100 to 150 word email with citations to specific transcript segments. The reviewer edits in place or regenerates with feedback.",
 ];
 
 export default function HomePage() {
@@ -70,11 +78,13 @@ export default function HomePage() {
           AI sales enablement workspace
         </div>
         <h1 className="mt-8 text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-          Upload a sales call. Get research, analysis, strategy, and a follow-up email in seconds.
+          Upload a sales call. Get research, analysis, strategy, and a follow-up email back in
+          seconds.
         </h1>
         <p className="text-muted-foreground mx-auto mt-6 max-w-xl text-lg leading-relaxed text-pretty">
-          Multi-agent orchestration over your pipeline. Hover any phrase in the email to see the
-          exact transcript moment it came from. Edit, regenerate with feedback, then send.
+          Multi-agent orchestration over your sales pipeline. Hover any phrase in the generated
+          email to see the exact transcript moment it came from. Edit, regenerate with feedback,
+          then send.
         </p>
         <div className="mt-10 flex items-center justify-center gap-3">
           <Button size="lg" asChild className="gap-1.5">
@@ -109,13 +119,7 @@ export default function HomePage() {
       <section className="mx-auto max-w-3xl px-6 py-16">
         <h2 className="text-2xl font-semibold tracking-tight">How the agent run works</h2>
         <ol className="mt-6 space-y-4 text-sm">
-          {[
-            "Research — Tavily web search + Claude Haiku 4.5 produces a structured prospect profile (segment, signals, likely pain points).",
-            "Transcription — Groq Whisper Large v3 returns segments with timestamps (skipped if no audio).",
-            "Analysis — Claude Sonnet 4.6 extracts topics, confirmed pain points, objections, action items, sentiment, and quotable moments — each indexed back to a transcript segment.",
-            "Strategy — Claude Sonnet 4.6 chooses the next step (follow-up / demo / proposal / nurture), urgency, and 3-5 specific talking points.",
-            "Writer — Claude Sonnet 4.6 drafts a 100-150 word email with citations to specific transcript segments. The reviewer can edit in place or regenerate with feedback.",
-          ].map((step, i) => (
+          {STEPS.map((step, i) => (
             <li key={i} className="flex gap-4">
               <span className="text-muted-foreground bg-muted flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-[10px]">
                 {String(i + 1).padStart(2, "0")}

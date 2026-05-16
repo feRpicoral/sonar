@@ -35,14 +35,14 @@ export async function POST(req: NextRequest) {
     return new NextResponse(`Webhook signature verification failed: ${message}`, { status: 400 });
   }
 
-  // Idempotency — Stripe re-delivers on retry; dedupe by event.id.
+  // Idempotency - Stripe re-delivers on retry; dedupe by event.id.
   const prisma = getPrisma();
   try {
     await prisma.processedStripeEvent.create({
       data: { eventId: event.id, type: event.type },
     });
   } catch {
-    // Already processed — return 200 to acknowledge.
+    // Already processed - return 200 to acknowledge.
     return NextResponse.json({ received: true, duplicate: true });
   }
 
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true });
   } catch (err) {
     console.error(`Stripe webhook handler for ${event.type} failed:`, err);
-    // Don't return 5xx — would cause Stripe to retry. Mark as handled, log.
+    // Don't return 5xx - would cause Stripe to retry. Mark as handled, log.
     return NextResponse.json({ received: true, error: "handler_failed" });
   }
 }

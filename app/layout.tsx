@@ -9,7 +9,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { PostHogProvider } from "@/lib/observability/posthog-provider";
 
 export const metadata: Metadata = {
-  title: "Sonar — AI sales enablement workspace",
+  title: "Sonar - AI sales enablement workspace",
   description:
     "Multi-agent orchestration for sales teams. Upload a call, get research, analysis, strategy, and a follow-up email in seconds.",
 };

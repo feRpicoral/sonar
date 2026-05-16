@@ -1,6 +1,6 @@
 "use client";
 
-import { Edit2, Pencil, Send, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Edit2, Pencil, Send, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { type RefCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -134,9 +134,10 @@ export function EmailSplitView(props: EmailSplitViewProps) {
         <div className="space-y-1">
           <Link
             href={`/leads/${leadId}`}
-            className="text-muted-foreground hover:text-foreground text-xs transition-colors"
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs transition-colors"
           >
-            ← {leadName}
+            <ArrowLeft className="h-3 w-3" />
+            Back to {leadName}
           </Link>
           <h1 className="text-xl font-semibold tracking-tight">Approve email</h1>
         </div>

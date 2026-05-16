@@ -19,7 +19,7 @@ export interface DeliveryInput {
 /**
  * Deliver a single webhook event synchronously. Records a WebhookDelivery row
  * with response status/body and either DELIVERED or FAILED status. Retry queue
- * (Inngest backoff) ships in a follow-up — V1 fires and persists once.
+ * (Inngest backoff) ships in a follow-up - V1 fires and persists once.
  */
 export async function deliverWebhook(input: DeliveryInput): Promise<{ delivered: boolean }> {
   const db = getDb(input.orgId);

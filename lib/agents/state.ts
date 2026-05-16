@@ -3,11 +3,11 @@ import { z } from "zod";
 // ─── Research (Haiku 4.5 + Tavily) ─────────────────────────────────────────
 
 export const ResearchOutputSchema = z.object({
-  segment: z.string().describe("Industry segment, e.g. 'B2B SaaS — workforce analytics'"),
+  segment: z.string().describe("Industry segment, e.g. 'B2B SaaS - workforce analytics'"),
   companySize: z.string().optional().describe("Headcount range, e.g. '50-200 employees'"),
   signals: z
     .array(z.string())
-    .describe("Recent newsworthy signals — funding, hiring, product launches, etc."),
+    .describe("Recent newsworthy signals - funding, hiring, product launches, etc."),
   likelyPainPoints: z
     .array(z.string())
     .describe("Pain points the prospect likely has, based on segment and signals"),

@@ -133,7 +133,7 @@ export function InviteMemberDialog() {
                       />
                     </FormControl>
                     <FormDescription>
-                      For your records — the invite link works for anyone.
+                      For your records - the invite link works for anyone.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

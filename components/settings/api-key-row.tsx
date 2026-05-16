@@ -87,7 +87,7 @@ export function ApiKeyRow({
             {lastUsedAt
               ? `last used ${formatDistanceToNow(lastUsedAt, { addSuffix: true })}`
               : "never used"}
-            {" · "}
+            {" , "}
             created {formatDistanceToNow(createdAt, { addSuffix: true })}
           </p>
         </div>

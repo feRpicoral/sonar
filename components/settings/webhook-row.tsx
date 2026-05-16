@@ -177,7 +177,7 @@ export function WebhookRow(props: WebhookRowProps) {
           <div className="bg-muted/20 border-border border-t px-4 py-3">
             {deliveries.length === 0 ? (
               <p className="text-muted-foreground py-4 text-center text-xs">
-                No deliveries yet — they show up here once events fire.
+                No deliveries yet - they show up here once events fire.
               </p>
             ) : (
               <ul className="divide-border divide-y">
@@ -199,7 +199,7 @@ export function WebhookRow(props: WebhookRowProps) {
                       <div className="font-mono text-xs">{d.eventType}</div>
                       <div className="text-muted-foreground font-mono text-[10px]">
                         {formatDistanceToNow(d.createdAt, { addSuffix: true })}
-                        {d.responseStatus != null && ` · http ${d.responseStatus}`}
+                        {d.responseStatus != null && ` , http ${d.responseStatus}`}
                       </div>
                     </div>
                     <Badge

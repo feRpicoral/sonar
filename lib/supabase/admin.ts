@@ -8,7 +8,7 @@ function requireEnv(name: string): string {
 
 /**
  * Privileged Supabase client for app_metadata updates and admin operations.
- * Service-role key is required — only use from trusted server contexts
+ * Service-role key is required - only use from trusted server contexts
  * (Server Actions, Route Handlers, Inngest functions). Never import from
  * client components.
  */

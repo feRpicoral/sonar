@@ -50,7 +50,7 @@ export default async function TrashPage() {
                 <div className="min-w-0 space-y-0.5">
                   <p className="truncate text-sm font-medium">{lead.name}</p>
                   <p className="text-muted-foreground truncate text-xs">
-                    {lead.companyName && `${lead.companyName} · `}
+                    {lead.companyName && `${lead.companyName} , `}
                     deleted{" "}
                     {lead.deletedAt && formatDistanceToNow(lead.deletedAt, { addSuffix: true })}
                   </p>

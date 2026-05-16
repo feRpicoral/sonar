@@ -74,7 +74,7 @@ export function CreateApiKeyDialog() {
             <DialogHeader>
               <DialogTitle>API key created</DialogTitle>
               <DialogDescription>
-                Copy it now — this is the only time you&apos;ll see the full key. Store it like a
+                Copy it now - this is the only time you&apos;ll see the full key. Store it like a
                 password.
               </DialogDescription>
             </DialogHeader>

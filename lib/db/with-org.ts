@@ -1,7 +1,7 @@
 import { getPrisma } from "./client";
 import type { OrgId } from "./types";
 
-// Multi-tenant models — every table that carries `orgId` and must be scoped
+// Multi-tenant models - every table that carries `orgId` and must be scoped
 // at the app layer. Updates here when new tenant tables are added to schema.prisma.
 const MULTI_TENANT_MODELS = new Set([
   "Lead",
@@ -44,7 +44,7 @@ const CREATE_MANY_OPS = new Set(["createMany", "createManyAndReturn"]);
  * injected; creates get `data.orgId = orgId` injected; upserts get both.
  *
  * Non-tenant models (User, Organization, Membership, ProcessedStripeEvent) are
- * passed through unmodified — callers should use `getPrisma()` directly.
+ * passed through unmodified - callers should use `getPrisma()` directly.
  */
 export function getDb(orgId: OrgId) {
   return getPrisma().$extends({
@@ -59,7 +59,7 @@ export function getDb(orgId: OrgId) {
           // Treat operation as string so we can match against ops not present
           // in Prisma's narrow `$allOperations` union (create / upsert variants).
           // Treat args as a record so we can splice in orgId without fighting
-          // operation-specific generics — Prisma validates the final shape.
+          // operation-specific generics - Prisma validates the final shape.
           const op = operation as string;
           const a = args as Record<string, unknown>;
 

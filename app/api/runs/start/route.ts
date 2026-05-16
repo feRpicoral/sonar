@@ -9,7 +9,7 @@ import { asRunId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
 
 // Pro-tier max; agent runs typically finish in 30-60s. Trim down if you're on
-// Hobby (limit is 60s) — orchestration still works in dev.
+// Hobby (limit is 60s) - orchestration still works in dev.
 export const maxDuration = 300;
 
 const bodySchema = z.object({

@@ -70,7 +70,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
               <h1 className="text-2xl font-semibold tracking-tight">Agent run</h1>
               <p className="text-muted-foreground text-sm">
                 {run.lead.name}
-                {run.lead.companyName && ` · ${run.lead.companyName}`}
+                {run.lead.companyName && ` , ${run.lead.companyName}`}
               </p>
             </div>
             <Badge variant={variant} className="font-mono text-[10px]">

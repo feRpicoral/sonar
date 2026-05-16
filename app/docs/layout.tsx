@@ -18,7 +18,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
             href="/login"
             className="text-muted-foreground hover:text-foreground text-xs transition-colors"
           >
-            Sign in →
+            Sign in
           </Link>
         </div>
       </header>

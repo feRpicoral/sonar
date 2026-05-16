@@ -12,7 +12,7 @@ export function generateWebhookSecret(): string {
 /**
  * Sign a payload for outbound delivery. Header format:
  *   X-Sonar-Signature: t=<unix>,v1=<sha256_hex>
- * The signed string is `${timestamp}.${rawBody}` — the timestamp prefix
+ * The signed string is `${timestamp}.${rawBody}` - the timestamp prefix
  * prevents replay attacks if a valid payload is captured.
  */
 export function signWebhookPayload(

@@ -147,7 +147,7 @@ export function UploadCallDialog({ leadId }: { leadId: string }) {
               <Upload className="text-muted-foreground h-6 w-6" />
               <p className="text-sm font-medium">Drop audio file here</p>
               <p className="text-muted-foreground text-xs">
-                mp3, wav, m4a, webm, ogg, or flac — up to 100 MB
+                mp3, wav, m4a, webm, ogg, or flac - up to 100 MB
               </p>
             </div>
           </div>
