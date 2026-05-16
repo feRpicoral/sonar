@@ -160,7 +160,11 @@ Optional demo data:
 yarn prisma db seed
 ```
 
-The seed creates a workspace with 10 leads and one call with a transcript. The synthetic user id won't match your real `auth.users.id`, so after signing up you'll see an empty workspace. Either skip the seed and create leads through the UI, or after signup edit `DEMO_USER_ID` in `prisma/seed.ts` to your real user id and re-run.
+The script prompts for a Supabase user UUID (find it under **Authentication → Users** in the Supabase dashboard) and attributes all seeded leads, calls, and audit entries to that user. Sign up via the app first so the auth user exists, then run the seed and paste your UUID at the prompt. To skip the prompt in scripts:
+
+```bash
+DEMO_USER_ID=<your-uuid> yarn prisma db seed
+```
 
 ### Daily
 
