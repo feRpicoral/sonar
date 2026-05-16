@@ -1,10 +1,11 @@
 import { formatDistanceToNow } from "date-fns";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { RunViewerClient } from "@/components/runs/run-viewer-client";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { requireSessionOrOnboard } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/with-org";
 
@@ -30,7 +31,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
       startedAt: true,
       completedAt: true,
       lead: { select: { id: true, name: true, companyName: true } },
-      call: { select: { id: true } },
+      emailDraft: { select: { id: true, status: true } },
       steps: {
         orderBy: { createdAt: "asc" },
         select: {
@@ -49,6 +50,9 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
 
   const variant: "default" | "secondary" | "destructive" =
     run.status === "COMPLETED" ? "default" : run.status === "FAILED" ? "destructive" : "secondary";
+
+  const draftReady =
+    run.emailDraft && (run.status === "AWAITING_APPROVAL" || run.status === "COMPLETED");
 
   return (
     <div className="px-8 py-8">
@@ -87,6 +91,27 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
             errorMessage: s.errorMessage,
           }))}
         />
+
+        {draftReady && run.emailDraft && (
+          <div className="bg-card border-primary/30 flex items-center justify-between rounded-lg border px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">
+                {run.emailDraft.status === "SENT" ? "Email sent" : "Email draft ready for review"}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {run.emailDraft.status === "SENT"
+                  ? "Open the draft to see citations and delivery status."
+                  : "Open the split-view to approve, edit, or regenerate with feedback."}
+              </p>
+            </div>
+            <Button asChild size="sm" className="gap-1.5">
+              <Link href={`/emails/${run.emailDraft.id}/approve`}>
+                {run.emailDraft.status === "SENT" ? "View" : "Review"}
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

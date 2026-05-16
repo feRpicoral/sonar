@@ -105,10 +105,29 @@ export async function runAgent(runId: string): Promise<void> {
       }),
     );
 
+    // Materialize the writer output as an EmailDraft and pause for approval.
+    await db.emailDraft.upsert({
+      where: { runId },
+      create: {
+        orgId,
+        runId,
+        subject: accumulated.writer.subject,
+        body: accumulated.writer.body,
+        citations: accumulated.writer.citations as never,
+        status: "DRAFT",
+      },
+      update: {
+        subject: accumulated.writer.subject,
+        body: accumulated.writer.body,
+        citations: accumulated.writer.citations as never,
+        status: "DRAFT",
+      },
+    });
+
     await db.agentRun.update({
       where: { id: runId },
       data: {
-        status: "COMPLETED",
+        status: "AWAITING_APPROVAL",
         completedAt: new Date(),
         state: accumulated as never,
       },
@@ -189,6 +208,83 @@ async function runStep<T>(
         errorMessage: message,
         completedAt: new Date(),
       },
+    });
+    throw err;
+  }
+}
+
+/**
+ * Re-run only the writer node against an existing run, incorporating reviewer
+ * feedback. Research, analysis, and strategy are reused from the prior state.
+ */
+export async function regenerateWriter(runId: string, feedback: string): Promise<void> {
+  const prisma = getPrisma();
+  const run = await prisma.agentRun.findUnique({
+    where: { id: runId },
+    select: {
+      id: true,
+      orgId: true,
+      state: true,
+      lead: { select: { name: true, companyName: true } },
+      call: { select: { segments: true } },
+    },
+  });
+  if (!run) throw new Error(`AgentRun ${runId} not found`);
+
+  const orgId = asOrgId(run.orgId);
+  const db = getDb(orgId);
+
+  const state = (run.state ?? {}) as AgentRunState;
+  if (!state.research || !state.strategy) {
+    throw new Error("Cannot regenerate: prior run is missing research or strategy state");
+  }
+
+  const segments = run.call
+    ? ((Array.isArray(run.call.segments)
+        ? run.call.segments
+        : []) as unknown as CallContext["segments"])
+    : undefined;
+
+  await db.agentRun.update({
+    where: { id: runId },
+    data: { status: "RUNNING" },
+  });
+
+  try {
+    const writer = await runStep<WriterOutput>(orgId, runId, "WRITER", () =>
+      writerNode({
+        leadName: run.lead.name,
+        companyName: run.lead.companyName,
+        research: state.research!,
+        analysis: state.analysis ?? null,
+        strategy: state.strategy!,
+        segments,
+        feedback,
+      }),
+    );
+
+    await db.emailDraft.update({
+      where: { runId },
+      data: {
+        subject: writer.subject,
+        body: writer.body,
+        citations: writer.citations as never,
+        status: "DRAFT",
+      },
+    });
+
+    await db.agentRun.update({
+      where: { id: runId },
+      data: {
+        status: "AWAITING_APPROVAL",
+        completedAt: new Date(),
+        state: { ...state, writer } as never,
+      },
+    });
+  } catch (err) {
+    await db.agentRun.update({
+      where: { id: runId },
+      data: { status: "FAILED" },
     });
     throw err;
   }

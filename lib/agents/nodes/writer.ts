@@ -15,11 +15,17 @@ export interface WriterInput {
   analysis: AnalysisOutput | null;
   strategy: StrategyOutput;
   segments?: { start: number; end: number; text: string }[];
+  /** Optional reviewer feedback to incorporate on a regeneration. */
+  feedback?: string;
 }
 
 export async function writerNode(input: WriterInput): Promise<WriterOutput> {
   const segmentsBlock = input.segments
     ? input.segments.map((s, i) => `[${i}] ${s.text.trim()}`).join("\n")
+    : "";
+
+  const feedbackBlock = input.feedback
+    ? `\nReviewer feedback to incorporate (the previous draft did not satisfy these — adjust accordingly):\n${input.feedback}\n`
     : "";
 
   const userPrompt = `Prospect contact: ${input.leadName}
@@ -41,7 +47,7 @@ ${
   segmentsBlock
     ? `Transcript segments (use the bracketed index as transcriptSegmentIndex for citations):\n${segmentsBlock}`
     : ""
-}
+}${feedbackBlock}
 
 Write the follow-up email by calling save_email. Cite specific transcript segments for any callback to what was said on the call.`;
 
