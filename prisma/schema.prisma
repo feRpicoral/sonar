@@ -14,8 +14,17 @@ generator client {
 }
 
 datasource db {
-  provider   = "postgresql"
-  extensions = [vector]
+  provider = "postgresql"
+  // vector is ours (pgvector for LeadEmbedding). The rest come pre-installed
+  // on every Supabase project; declaring them prevents `migrate dev` from
+  // treating them as drift and offering to reset the database.
+  extensions = [
+    vector,
+    pgcrypto,
+    pg_stat_statements,
+    supabase_vault,
+    uuidOssp(map: "uuid-ossp"),
+  ]
 }
 
 // ─────────────────────────────────────────────
