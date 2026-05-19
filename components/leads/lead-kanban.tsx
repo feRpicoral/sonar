@@ -4,6 +4,8 @@ import {
   closestCorners,
   DndContext,
   type DragEndEvent,
+  DragOverlay,
+  type DragStartEvent,
   PointerSensor,
   useDraggable,
   useDroppable,
@@ -11,7 +13,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import type { ReactNode } from "react";
-import { useOptimistic, useTransition } from "react";
+import { useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
 
 import { updateLeadStatusAction } from "@/lib/leads/actions";
@@ -31,6 +33,23 @@ const COLUMNS: { status: Status; label: string }[] = [
 
 const COLUMN_IDS: ReadonlySet<string> = new Set(COLUMNS.map((c) => c.status));
 
+const COARSE_QUERY = "(hover: none) and (pointer: coarse)";
+
+// Touch devices fall back to the dropdown "Move to" menu on each card — drag
+// is desktop-only because columns scroll horizontally and a long-press to
+// drag fights with that scroll on mobile.
+function usePointerCoarse(): boolean {
+  return useSyncExternalStore(
+    (callback) => {
+      const mq = window.matchMedia(COARSE_QUERY);
+      mq.addEventListener("change", callback);
+      return () => mq.removeEventListener("change", callback);
+    },
+    () => window.matchMedia(COARSE_QUERY).matches,
+    () => false,
+  );
+}
+
 export function LeadKanban({ leads }: { leads: LeadCardProps[] }) {
   const [optimisticLeads, applyOptimistic] = useOptimistic<
     LeadCardProps[],
@@ -39,6 +58,8 @@ export function LeadKanban({ leads }: { leads: LeadCardProps[] }) {
     state.map((l) => (l.id === leadId ? { ...l, status } : l)),
   );
   const [, startTransition] = useTransition();
+  const isCoarse = usePointerCoarse();
+  const [activeLead, setActiveLead] = useState<LeadCardProps | null>(null);
 
   // Distance threshold lets cards still receive clicks (Link, dropdown trigger)
   // without immediately starting a drag.
@@ -53,7 +74,15 @@ export function LeadKanban({ leads }: { leads: LeadCardProps[] }) {
   };
   for (const lead of optimisticLeads) grouped[lead.status].push(lead);
 
+  const onDragStart = (event: DragStartEvent) => {
+    const lead = optimisticLeads.find((l) => l.id === event.active.id);
+    if (lead) setActiveLead(lead);
+  };
+
+  const onDragCancel = () => setActiveLead(null);
+
   const onDragEnd = (event: DragEndEvent) => {
+    setActiveLead(null);
     const { active, over } = event;
     if (!over) return;
     const leadId = String(active.id);
@@ -71,7 +100,13 @@ export function LeadKanban({ leads }: { leads: LeadCardProps[] }) {
   };
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={onDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      onDragStart={onDragStart}
+      onDragCancel={onDragCancel}
+      onDragEnd={onDragEnd}
+    >
       <div className="flex h-full gap-3 overflow-x-auto px-4 pt-6 pb-8 sm:px-8 sm:pt-8">
         {COLUMNS.map((col) => {
           const items = grouped[col.status];
@@ -88,16 +123,27 @@ export function LeadKanban({ leads }: { leads: LeadCardProps[] }) {
               <DroppableColumn status={col.status}>
                 {items.length === 0 ? (
                   <div className="grid h-24 place-items-center">
-                    <p className="text-muted-foreground font-mono text-[10px]">empty</p>
+                    <p className="text-muted-foreground font-mono text-[10px]">
+                      {activeLead ? "drop here" : "empty"}
+                    </p>
                   </div>
                 ) : (
-                  items.map((lead) => <DraggableLeadCard key={lead.id} {...lead} />)
+                  items.map((lead) => (
+                    <DraggableLeadCard key={lead.id} disabled={isCoarse} {...lead} />
+                  ))
                 )}
               </DroppableColumn>
             </div>
           );
         })}
       </div>
+      <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }}>
+        {activeLead ? (
+          <div className="rotate-1 cursor-grabbing shadow-lg ring-1 ring-black/5">
+            <LeadCard {...activeLead} />
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }
@@ -109,7 +155,7 @@ function DroppableColumn({ status, children }: { status: Status; children: React
       ref={setNodeRef}
       className={cn(
         "bg-muted/60 border-border/60 flex flex-1 flex-col gap-2 rounded-lg border p-2 transition-colors",
-        isOver && "border-primary/40 bg-primary/5",
+        isOver && "border-primary/50 bg-primary/5",
       )}
     >
       {children}
@@ -117,21 +163,18 @@ function DroppableColumn({ status, children }: { status: Status; children: React
   );
 }
 
-function DraggableLeadCard(props: LeadCardProps) {
-  const { setNodeRef, listeners, attributes, transform, isDragging } = useDraggable({
+function DraggableLeadCard({ disabled, ...props }: LeadCardProps & { disabled?: boolean }) {
+  const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
     id: props.id,
+    disabled,
   });
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 50 }
-    : undefined;
 
   return (
     <div
       ref={setNodeRef}
-      style={style}
       {...listeners}
       {...attributes}
-      className={cn(isDragging && "opacity-40")}
+      className={cn(!disabled && "cursor-grab", isDragging && "opacity-40")}
     >
       <LeadCard {...props} />
     </div>
