@@ -1,16 +1,20 @@
 import { CreateLeadDialog } from "@/components/leads/create-lead-dialog";
 import { LeadFilterTabs } from "@/components/leads/lead-filter-tabs";
 import { LeadKanban } from "@/components/leads/lead-kanban";
+import { LeadTable } from "@/components/leads/lead-table";
+import { LeadViewToggle } from "@/components/leads/lead-view-toggle";
 import { requireSessionOrOnboard } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/with-org";
+import { cn } from "@/lib/utils";
 
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; view?: string }>;
 }) {
   const session = await requireSessionOrOnboard();
-  const { filter } = await searchParams;
+  const { filter, view } = await searchParams;
+  const isList = view === "list";
 
   const db = getDb(session.orgId);
   const where: {
@@ -35,7 +39,7 @@ export default async function LeadsPage({
   });
 
   return (
-    <div className="flex min-h-screen flex-col lg:h-screen">
+    <div className={cn("flex min-h-screen flex-col", !isList && "lg:h-screen")}>
       <header className="border-border flex flex-col gap-4 border-b px-4 pt-6 pb-4 sm:px-8 sm:pt-10 sm:pb-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
@@ -45,6 +49,7 @@ export default async function LeadsPage({
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <LeadFilterTabs />
+          <LeadViewToggle />
           <CreateLeadDialog />
         </div>
       </header>
@@ -58,6 +63,8 @@ export default async function LeadsPage({
             <CreateLeadDialog />
           </div>
         </div>
+      ) : isList ? (
+        <LeadTable leads={leads} />
       ) : (
         <LeadKanban leads={leads} />
       )}

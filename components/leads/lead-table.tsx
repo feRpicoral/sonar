@@ -1,0 +1,122 @@
+"use client";
+
+import { formatDistanceToNow } from "date-fns";
+import { useState } from "react";
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
+
+import type { LeadCardProps } from "./lead-card";
+import { LeadDetailModal } from "./lead-detail-modal";
+
+type Status = LeadCardProps["status"];
+
+const COLUMNS: { status: Status; label: string }[] = [
+  { status: "DISCOVERY", label: "Discovery" },
+  { status: "QUALIFIED", label: "Qualified" },
+  { status: "DEMO", label: "Demo" },
+  { status: "PROPOSAL", label: "Proposal" },
+  { status: "CLOSED", label: "Closed" },
+];
+
+function initials(s: string) {
+  return (
+    s
+      .split(/[\s@]/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((x) => x.charAt(0).toUpperCase())
+      .join("") || "?"
+  );
+}
+
+export function LeadTable({ leads }: { leads: LeadCardProps[] }) {
+  const [selected, setSelected] = useState<LeadCardProps | null>(null);
+
+  const grouped: Record<Status, LeadCardProps[]> = {
+    DISCOVERY: [],
+    QUALIFIED: [],
+    DEMO: [],
+    PROPOSAL: [],
+    CLOSED: [],
+  };
+  for (const lead of leads) grouped[lead.status].push(lead);
+
+  // Keep modal in sync with the latest server data when the page revalidates.
+  // We look up the selected lead by id against the fresh leads prop.
+  const liveSelected = selected ? (leads.find((l) => l.id === selected.id) ?? null) : null;
+
+  return (
+    <>
+      <div className="px-4 pt-6 pb-8 sm:px-8 sm:pt-8">
+        <div className="border-border bg-card overflow-hidden rounded-lg border">
+          {COLUMNS.map((col, colIdx) => {
+            const items = grouped[col.status];
+            return (
+              <section
+                key={col.status}
+                className={cn(colIdx > 0 && "border-border border-t")}
+                aria-labelledby={`group-${col.status}`}
+              >
+                <header className="bg-muted/40 border-border flex items-center justify-between border-b px-4 py-2">
+                  <h3
+                    id={`group-${col.status}`}
+                    className="text-xs font-medium tracking-wide uppercase"
+                  >
+                    {col.label}
+                  </h3>
+                  <span className="text-muted-foreground bg-background/60 rounded-full px-2 py-0.5 font-mono text-[10px]">
+                    {items.length}
+                  </span>
+                </header>
+                {items.length === 0 ? (
+                  <div className="text-muted-foreground px-4 py-3 font-mono text-[10px]">empty</div>
+                ) : (
+                  <ul>
+                    {items.map((lead, i) => (
+                      <li key={lead.id} className={cn(i > 0 && "border-border/60 border-t")}>
+                        <button
+                          type="button"
+                          onClick={() => setSelected(lead)}
+                          className="hover:bg-muted/30 flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors"
+                        >
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                            {lead.name}
+                          </span>
+                          <span className="text-muted-foreground hidden max-w-[45%] min-w-0 truncate text-xs sm:inline">
+                            {lead.companyName ?? ""}
+                          </span>
+                          <span className="ml-auto flex shrink-0 items-center gap-3">
+                            {lead.assignedTo ? (
+                              <Avatar className="h-5 w-5">
+                                <AvatarImage
+                                  src={lead.assignedTo.avatarUrl ?? undefined}
+                                  alt={lead.assignedTo.name ?? lead.assignedTo.email}
+                                />
+                                <AvatarFallback className="text-[9px]">
+                                  {initials(lead.assignedTo.name ?? lead.assignedTo.email)}
+                                </AvatarFallback>
+                              </Avatar>
+                            ) : (
+                              <span className="text-muted-foreground font-mono text-[10px]">
+                                unassigned
+                              </span>
+                            )}
+                            <span className="text-muted-foreground hidden w-20 text-right font-mono text-[10px] sm:inline">
+                              {formatDistanceToNow(lead.updatedAt, { addSuffix: true })}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      </div>
+      <LeadDetailModal lead={liveSelected} onClose={() => setSelected(null)} />
+    </>
+  );
+}
