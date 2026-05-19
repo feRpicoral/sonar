@@ -19,7 +19,7 @@ export function LeadKanban({ leads }: { leads: LeadCardProps[] }) {
   for (const lead of leads) grouped[lead.status].push(lead);
 
   return (
-    <div className="flex h-full gap-3 overflow-x-auto px-4 pb-8 sm:px-8">
+    <div className="flex h-full gap-3 overflow-x-auto px-4 pt-6 pb-8 sm:px-8 sm:pt-8">
       {COLUMNS.map((col) => {
         const items = grouped[col.status];
         return (
@@ -32,7 +32,7 @@ export function LeadKanban({ leads }: { leads: LeadCardProps[] }) {
                 {items.length}
               </span>
             </header>
-            <div className="bg-muted/30 flex flex-1 flex-col gap-2 rounded-lg p-2">
+            <div className="bg-muted/60 border-border/60 flex flex-1 flex-col gap-2 rounded-lg border p-2">
               {items.length === 0 ? (
                 <div className="grid h-24 place-items-center">
                   <p className="text-muted-foreground font-mono text-[10px]">empty</p>
