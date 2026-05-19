@@ -1,7 +1,7 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -105,7 +105,7 @@ export function LeadTable({ leads }: { leads: LeadCardProps[] }) {
                           <button
                             type="button"
                             onClick={() => setSelected(lead)}
-                            className="hover:bg-muted/30 flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors"
+                            className="group hover:bg-muted/30 flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left transition-colors"
                           >
                             <span className="min-w-0 flex-1 truncate text-sm font-medium">
                               {lead.name}
@@ -133,6 +133,10 @@ export function LeadTable({ leads }: { leads: LeadCardProps[] }) {
                                 {formatDistanceToNow(lead.updatedAt, { addSuffix: true })}
                               </span>
                             </span>
+                            <ChevronRight
+                              className="text-muted-foreground h-3.5 w-3.5 shrink-0 opacity-40 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
+                              aria-hidden
+                            />
                           </button>
                         </li>
                       ))}
