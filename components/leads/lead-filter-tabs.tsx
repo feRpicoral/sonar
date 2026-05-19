@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
+import { buildLeadsHref } from "./leads-href";
+
 const TABS = [
   { value: "all", label: "All" },
   { value: "my", label: "My leads" },
@@ -19,7 +21,9 @@ export function LeadFilterTabs() {
     <nav className="bg-muted inline-flex rounded-md p-0.5">
       {TABS.map((tab) => {
         const active = current === tab.value;
-        const href = tab.value === "all" ? "/leads" : `/leads?filter=${tab.value}`;
+        const href = buildLeadsHref(params, {
+          filter: tab.value === "all" ? null : tab.value,
+        });
         return (
           <Link
             key={tab.value}
