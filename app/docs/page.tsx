@@ -1,6 +1,8 @@
 import { CodeBlock, H1, H2, H3, InlineCode, Lead, P } from "@/components/docs/doc-elements";
+import { getApiBaseUrl } from "@/lib/env/app-url";
 
 export default function DocsOverviewPage() {
+  const base = getApiBaseUrl();
   return (
     <article>
       <H1>Sonar API</H1>
@@ -10,12 +12,12 @@ export default function DocsOverviewPage() {
       </Lead>
 
       <H2>Base URL</H2>
-      <CodeBlock>https://sonar.vercel.app/api/v1</CodeBlock>
+      <CodeBlock>{base}</CodeBlock>
 
       <H2>Quickstart</H2>
       <P>Generate an API key in Settings / API keys, then:</P>
       <CodeBlock language="bash">{`curl -H "Authorization: Bearer sk_..." \\
-  https://sonar.vercel.app/api/v1/leads`}</CodeBlock>
+  ${base}/leads`}</CodeBlock>
 
       <H2>Conventions</H2>
       <H3>Responses</H3>

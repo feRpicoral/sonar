@@ -11,8 +11,10 @@ import {
   Td,
   Th,
 } from "@/components/docs/doc-elements";
+import { getApiBaseUrl } from "@/lib/env/app-url";
 
 export default function AuthenticationDocsPage() {
+  const base = getApiBaseUrl();
   return (
     <article>
       <H1>Authentication</H1>
@@ -38,7 +40,7 @@ export default function AuthenticationDocsPage() {
         Pass the key in the <InlineCode>Authorization</InlineCode> header:
       </P>
       <CodeBlock language="bash">{`curl -H "Authorization: Bearer sk_<your-key>" \\
-  https://sonar.vercel.app/api/v1/leads`}</CodeBlock>
+  ${base}/leads`}</CodeBlock>
 
       <H2>Scopes</H2>
       <Table>

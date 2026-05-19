@@ -1,6 +1,8 @@
 import { CodeBlock, H1, H2, H3, InlineCode, Lead, P } from "@/components/docs/doc-elements";
+import { getApiBaseUrl } from "@/lib/env/app-url";
 
 export default function ApiReferenceDocsPage() {
+  const base = getApiBaseUrl();
   return (
     <article>
       <H1>API reference</H1>
@@ -15,7 +17,7 @@ export default function ApiReferenceDocsPage() {
         List leads. Returns up to <InlineCode>limit</InlineCode> rows (max 100, default 50).
       </P>
       <CodeBlock language="bash">{`curl -H "Authorization: Bearer $SONAR_KEY" \\
-  https://sonar.vercel.app/api/v1/leads?limit=20`}</CodeBlock>
+  ${base}/leads?limit=20`}</CodeBlock>
       <CodeBlock language="json">{`{
   "data": [
     {
@@ -39,7 +41,7 @@ export default function ApiReferenceDocsPage() {
       <CodeBlock language="bash">{`curl -H "Authorization: Bearer $SONAR_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"name":"Jane Doe","companyName":"Acme","status":"DISCOVERY"}' \\
-  https://sonar.vercel.app/api/v1/leads`}</CodeBlock>
+  ${base}/leads`}</CodeBlock>
       <P>
         Required scope: <InlineCode>leads:write</InlineCode>. Returns the created lead with status
         201.
@@ -55,7 +57,7 @@ export default function ApiReferenceDocsPage() {
       <CodeBlock language="bash">{`curl -H "Authorization: Bearer $SONAR_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"leadId":"<uuid>","callId":"<uuid>"}' \\
-  https://sonar.vercel.app/api/v1/runs`}</CodeBlock>
+  ${base}/runs`}</CodeBlock>
       <P>
         Required scope: <InlineCode>runs:write</InlineCode>.
       </P>
