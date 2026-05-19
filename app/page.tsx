@@ -2,6 +2,7 @@ import { ArrowRight, GitBranch, Mic, ShieldCheck, Sparkles } from "lucide-react"
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 const PILLARS = [
   {
@@ -32,7 +33,13 @@ const STEPS = [
   "Writer. Claude Sonnet 4.6 drafts a 100 to 150 word email with citations to specific transcript segments. The reviewer edits in place or regenerates with feedback.",
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isAuthed = !!user;
+
   return (
     <main className="bg-background min-h-screen">
       <header className="border-border border-b">
@@ -56,18 +63,29 @@ export default function HomePage() {
             >
               GitHub
             </Link>
-            <Link
-              href="/login"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Sign in
-            </Link>
-            <Button size="sm" asChild className="gap-1.5">
-              <Link href="/signup">
-                Try the demo
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </Button>
+            {isAuthed ? (
+              <Button size="sm" asChild className="gap-1.5">
+                <Link href="/dashboard">
+                  Open dashboard
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Sign in
+                </Link>
+                <Button size="sm" asChild className="gap-1.5">
+                  <Link href="/signup">
+                    Try the demo
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+              </>
+            )}
           </nav>
         </div>
       </header>
@@ -88,8 +106,8 @@ export default function HomePage() {
         </p>
         <div className="mt-10 flex items-center justify-center gap-3">
           <Button size="lg" asChild className="gap-1.5">
-            <Link href="/signup">
-              Open the demo workspace
+            <Link href={isAuthed ? "/dashboard" : "/signup"}>
+              {isAuthed ? "Go to dashboard" : "Open the demo workspace"}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>

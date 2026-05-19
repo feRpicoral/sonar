@@ -1,6 +1,17 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+import { createServerSupabase } from "@/lib/supabase/server";
+
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  // Visiting /login or /signup while authenticated lands you on the dashboard.
+  // /dashboard's own guard handles the "no org yet" case (routes to /create-org).
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) redirect("/dashboard");
+
   return (
     <div className="grid min-h-screen w-full place-items-center px-6 py-12">
       <div className="w-full max-w-sm space-y-10">
