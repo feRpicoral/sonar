@@ -15,6 +15,7 @@ export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
 const createSchema = z.object({
   name: z.string().min(1, "Name required").max(120),
+  email: z.union([z.string().email("Invalid email"), z.literal("")]).optional(),
   companyName: z.union([z.string().max(120), z.literal("")]).optional(),
   companyWebsite: z.union([z.string().url("Invalid URL"), z.literal("")]).optional(),
   status: z.enum(LEAD_STATUSES).default("DISCOVERY"),
@@ -29,6 +30,7 @@ export async function createLeadAction(
   const session = await requireSessionOrOnboard();
   const parsed = createSchema.safeParse({
     name: formData.get("name"),
+    email: formData.get("email") || undefined,
     companyName: formData.get("companyName") || undefined,
     companyWebsite: formData.get("companyWebsite") || undefined,
     status: (formData.get("status") as string | null) ?? "DISCOVERY",
@@ -42,6 +44,7 @@ export async function createLeadAction(
     data: {
       orgId: session.orgId,
       name: parsed.data.name,
+      email: parsed.data.email || null,
       companyName: parsed.data.companyName || null,
       companyWebsite: parsed.data.companyWebsite || null,
       status: parsed.data.status,
@@ -105,6 +108,45 @@ export async function updateLeadStatusAction(
   });
 
   revalidatePath("/leads");
+  revalidatePath(`/leads/${leadId}`);
+  return {};
+}
+
+const emailSchema = z.union([z.string().email("Invalid email"), z.literal("")]);
+
+export async function updateLeadEmailAction(
+  leadId: string,
+  email: string,
+): Promise<{ error?: string }> {
+  const session = await requireSessionOrOnboard();
+  const db = getDb(session.orgId);
+
+  const parsed = emailSchema.safeParse(email.trim());
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid email" };
+
+  const existing = await db.lead.findUnique({
+    where: { id: leadId },
+    select: { email: true },
+  });
+  if (!existing) return { error: "Lead not found" };
+
+  const nextEmail = parsed.data || null;
+  if (existing.email === nextEmail) return {};
+
+  await db.lead.update({
+    where: { id: leadId },
+    data: { email: nextEmail },
+  });
+
+  await writeAudit({
+    orgId: session.orgId,
+    actorUserId: session.userId,
+    action: "lead.updated",
+    targetType: "lead",
+    targetId: asLeadId(leadId),
+    metadata: { field: "email" },
+  });
+
   revalidatePath(`/leads/${leadId}`);
   return {};
 }

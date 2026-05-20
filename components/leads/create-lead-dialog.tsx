@@ -39,6 +39,7 @@ import { createLeadAction } from "@/lib/leads/actions";
 
 const schema = z.object({
   name: z.string().min(1, "Name required").max(120),
+  email: z.union([z.string().email("Invalid email"), z.literal("")]).optional(),
   companyName: z.union([z.string().max(120), z.literal("")]).optional(),
   companyWebsite: z.union([z.string().url("Invalid URL"), z.literal("")]).optional(),
   status: z.enum(["DISCOVERY", "QUALIFIED", "DEMO", "PROPOSAL", "CLOSED"]),
@@ -53,13 +54,20 @@ export function CreateLeadDialog() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", companyName: "", companyWebsite: "", status: "DISCOVERY" },
+    defaultValues: {
+      name: "",
+      email: "",
+      companyName: "",
+      companyWebsite: "",
+      status: "DISCOVERY",
+    },
   });
 
   const onSubmit = (data: FormValues) => {
     startTransition(async () => {
       const fd = new FormData();
       fd.append("name", data.name);
+      if (data.email) fd.append("email", data.email);
       if (data.companyName) fd.append("companyName", data.companyName);
       if (data.companyWebsite) fd.append("companyWebsite", data.companyWebsite);
       fd.append("status", data.status);
@@ -107,6 +115,26 @@ export function CreateLeadDialog() {
                   <FormControl>
                     <Input placeholder="Jane Doe" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email (optional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      placeholder="jane@acme.com"
+                      autoComplete="off"
+                      {...field}
+                      value={field.value ?? ""}
+                    />
+                  </FormControl>
+                  <FormDescription>Required to approve & send follow-up emails.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

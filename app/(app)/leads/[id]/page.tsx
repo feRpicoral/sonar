@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { CancelTranscriptionButton } from "@/components/calls/cancel-transcription-button";
 import { LeadDropzoneOverlay } from "@/components/calls/lead-dropzone-overlay";
 import { UploadCallDialog } from "@/components/calls/upload-call-dialog";
+import { LeadEmailEditor } from "@/components/leads/lead-email-editor";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { requireSessionOrOnboard } from "@/lib/auth/session";
@@ -41,6 +42,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     select: {
       id: true,
       name: true,
+      email: true,
       companyName: true,
       companyWebsite: true,
       status: true,
@@ -95,6 +97,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                   )}
                 </p>
               )}
+              <LeadEmailEditor leadId={lead.id} initialEmail={lead.email} />
             </div>
             <div className="flex items-center gap-3">
               <Badge variant="secondary" className="font-mono text-[10px]">

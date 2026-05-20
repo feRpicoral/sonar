@@ -10,6 +10,7 @@ import { publishEvent } from "@/lib/webhooks/publish";
 
 const createSchema = z.object({
   name: z.string().min(1, "Name required").max(120),
+  email: z.string().email().optional(),
   companyName: z.string().max(120).optional(),
   companyWebsite: z.string().url().optional(),
   status: z.enum(["DISCOVERY", "QUALIFIED", "DEMO", "PROPOSAL", "CLOSED"]).optional(),
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest) {
     select: {
       id: true,
       name: true,
+      email: true,
       companyName: true,
       companyWebsite: true,
       status: true,
@@ -72,6 +74,7 @@ export async function POST(req: NextRequest) {
     data: {
       orgId: auth.auth.orgId,
       name: parsed.data.name,
+      email: parsed.data.email ?? null,
       companyName: parsed.data.companyName ?? null,
       companyWebsite: parsed.data.companyWebsite ?? null,
       status: parsed.data.status ?? "DISCOVERY",
@@ -80,6 +83,7 @@ export async function POST(req: NextRequest) {
     select: {
       id: true,
       name: true,
+      email: true,
       companyName: true,
       status: true,
       createdAt: true,
