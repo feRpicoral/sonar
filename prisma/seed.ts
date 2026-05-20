@@ -130,66 +130,77 @@ const prisma = new PrismaClient({ adapter });
 
 const LEADS: Array<{
   name: string;
+  email: string;
   companyName: string;
   companyWebsite: string;
   status: "DISCOVERY" | "QUALIFIED" | "DEMO" | "PROPOSAL" | "CLOSED";
 }> = [
   {
     name: "Sarah Chen",
+    email: "sarah.chen@acmerobotics.com",
     companyName: "Acme Robotics",
     companyWebsite: "https://acmerobotics.com",
     status: "DISCOVERY",
   },
   {
     name: "Marcus Patel",
+    email: "marcus@vertexhealth.io",
     companyName: "Vertex Health",
     companyWebsite: "https://vertexhealth.io",
     status: "DISCOVERY",
   },
   {
     name: "Elena Ruiz",
+    email: "elena.ruiz@northstar.co",
     companyName: "Northstar Logistics",
     companyWebsite: "https://northstar.co",
     status: "QUALIFIED",
   },
   {
     name: "David Kim",
+    email: "david.kim@pinecone.dev",
     companyName: "Pinecone Analytics",
     companyWebsite: "https://pinecone.dev",
     status: "QUALIFIED",
   },
   {
     name: "Priya Singh",
+    email: "priya@lumen-energy.com",
     companyName: "Lumen Energy",
     companyWebsite: "https://lumen-energy.com",
     status: "DEMO",
   },
   {
     name: "James O'Brien",
+    email: "james.obrien@cascade.io",
     companyName: "Cascade Software",
     companyWebsite: "https://cascade.io",
     status: "DEMO",
   },
   {
     name: "Aisha Hassan",
+    email: "aisha.hassan@meridianbank.com",
     companyName: "Meridian Bank",
     companyWebsite: "https://meridianbank.com",
     status: "PROPOSAL",
   },
   {
     name: "Carlos Vega",
+    email: "carlos.vega@stellaraero.com",
     companyName: "Stellar Aerospace",
     companyWebsite: "https://stellaraero.com",
     status: "PROPOSAL",
   },
   {
     name: "Yuki Tanaka",
+    email: "yuki.tanaka@bloomretail.co",
     companyName: "Bloom Retail",
     companyWebsite: "https://bloomretail.co",
     status: "CLOSED",
   },
   {
     name: "Olivia Martin",
+    email: "olivia.martin@atlasinsure.com",
     companyName: "Atlas Insurance",
     companyWebsite: "https://atlasinsure.com",
     status: "CLOSED",
@@ -381,6 +392,7 @@ async function main(): Promise<void> {
         data: {
           orgId: org.id,
           name: spec.name,
+          email: spec.email,
           companyName: spec.companyName,
           companyWebsite: spec.companyWebsite,
           status: spec.status,
