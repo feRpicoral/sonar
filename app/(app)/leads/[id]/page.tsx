@@ -3,6 +3,7 @@ import { ArrowLeft, ExternalLink, FileAudio, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { CancelTranscriptionButton } from "@/components/calls/cancel-transcription-button";
 import { LeadDropzoneOverlay } from "@/components/calls/lead-dropzone-overlay";
 import { UploadCallDialog } from "@/components/calls/upload-call-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -172,11 +173,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                           </div>
                         </div>
                       </div>
-                      {call.durationSec && (
-                        <span className="text-muted-foreground font-mono text-xs">
-                          {formatTimestamp(call.durationSec)}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {call.durationSec && (
+                          <span className="text-muted-foreground font-mono text-xs">
+                            {formatTimestamp(call.durationSec)}
+                          </span>
+                        )}
+                        {!call.transcriptText && <CancelTranscriptionButton callId={call.id} />}
+                      </div>
                     </Link>
                   </li>
                 ))}
