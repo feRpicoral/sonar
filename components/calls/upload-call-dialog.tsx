@@ -14,21 +14,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { prepareCallUploadAction, transcribeCallAction } from "@/lib/calls/actions";
-import {
-  ALLOWED_AUDIO_MIME,
-  CALL_AUDIO_BUCKET,
-  isAllowedAudioMime,
-  MAX_AUDIO_BYTES,
-} from "@/lib/storage/audio";
-import { createBrowserSupabase } from "@/lib/supabase/client";
+import { uploadCallFile, type UploadStage } from "@/lib/calls/upload-call-file";
+import { ALLOWED_AUDIO_MIME } from "@/lib/storage/audio";
 import { cn } from "@/lib/utils";
-
-type Stage = "idle" | "uploading" | "transcribing";
 
 export function UploadCallDialog({ leadId }: { leadId: string }) {
   const [open, setOpen] = useState(false);
-  const [stage, setStage] = useState<Stage>("idle");
+  const [stage, setStage] = useState<UploadStage>("idle");
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -36,49 +28,16 @@ export function UploadCallDialog({ leadId }: { leadId: string }) {
   const reset = () => setStage("idle");
 
   const handleFile = async (file: File) => {
-    if (!isAllowedAudioMime(file.type)) {
-      toast.error("Unsupported audio format");
-      return;
-    }
-    if (file.size > MAX_AUDIO_BYTES) {
-      toast.error("File exceeds 100 MB");
-      return;
-    }
-
-    setStage("uploading");
-    const prep = await prepareCallUploadAction({
-      leadId,
-      mime: file.type,
-      sizeBytes: file.size,
-    });
-    if ("error" in prep) {
-      toast.error(prep.error);
-      reset();
-      return;
-    }
-
-    const supabase = createBrowserSupabase();
-    const { error: uploadError } = await supabase.storage
-      .from(CALL_AUDIO_BUCKET)
-      .uploadToSignedUrl(prep.path, prep.token, file, { contentType: file.type });
-    if (uploadError) {
-      toast.error(`Upload failed: ${uploadError.message}`);
-      reset();
-      return;
-    }
-
-    setStage("transcribing");
-    const result = await transcribeCallAction(prep.callId);
-    if (result.error) {
+    const result = await uploadCallFile(file, leadId, setStage);
+    if (!result.ok) {
       toast.error(result.error);
       reset();
       return;
     }
-
     toast.success("Call transcribed");
     setOpen(false);
     reset();
-    router.push(`/leads/${leadId}/calls/${prep.callId}`);
+    router.push(`/leads/${leadId}/calls/${result.callId}`);
   };
 
   const onInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -147,7 +106,7 @@ export function UploadCallDialog({ leadId }: { leadId: string }) {
               <Upload className="text-muted-foreground h-6 w-6" />
               <p className="text-sm font-medium">Drop audio file here</p>
               <p className="text-muted-foreground text-xs">
-                mp3, wav, m4a, webm, ogg, or flac - up to 100 MB
+                mp3, mp4, m4a, opus, ogg, wav, flac, aac, webm - up to 100 MB
               </p>
             </div>
           </div>
