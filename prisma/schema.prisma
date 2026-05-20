@@ -136,6 +136,7 @@ model Lead {
   id               String     @id @default(uuid()) @db.Uuid
   orgId            String     @map("org_id") @db.Uuid
   name             String
+  email            String?
   companyName      String?    @map("company_name")
   companyWebsite   String?    @map("company_website")
   status           LeadStatus @default(DISCOVERY)
