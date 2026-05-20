@@ -12,9 +12,13 @@ export const ALLOWED_AUDIO_MIME = [
   "audio/x-wav",
   "audio/webm",
   "audio/ogg",
+  "audio/opus",
   "audio/flac",
+  "audio/x-flac",
   "audio/x-m4a",
   "audio/m4a",
+  "audio/aac",
+  "audio/x-aac",
 ] as const;
 
 export type AudioMime = (typeof ALLOWED_AUDIO_MIME)[number];
