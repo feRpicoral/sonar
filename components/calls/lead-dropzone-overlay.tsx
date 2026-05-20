@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
+import { cancelCallTranscriptionAction } from "@/lib/calls/actions";
 import { uploadCallFile, type UploadStage } from "@/lib/calls/upload-call-file";
 
 /**
@@ -28,10 +30,26 @@ export function LeadDropzoneOverlay({
   // Read inside async drop handler without re-binding window listeners on
   // every stage transition.
   const stageRef = useRef<UploadStage>("idle");
+  const abortRef = useRef<AbortController | null>(null);
+  const callIdRef = useRef<string | null>(null);
 
   const updateStage = (next: UploadStage) => {
     stageRef.current = next;
     setStage(next);
+  };
+
+  const resetWorkState = () => {
+    updateStage("idle");
+    abortRef.current = null;
+    callIdRef.current = null;
+  };
+
+  const onCancel = () => {
+    abortRef.current?.abort();
+    const id = callIdRef.current;
+    if (id) void cancelCallTranscriptionAction(id);
+    toast.info("Transcription cancelled");
+    resetWorkState();
   };
 
   useEffect(() => {
@@ -64,8 +82,26 @@ export function LeadDropzoneOverlay({
       const file = e.dataTransfer?.files[0];
       if (!file) return;
 
-      const result = await uploadCallFile(file, leadId, updateStage);
-      updateStage("idle");
+      const controller = new AbortController();
+      abortRef.current = controller;
+      callIdRef.current = null;
+
+      const result = await uploadCallFile(file, leadId, {
+        onStageChange: updateStage,
+        onCallCreated: (id) => {
+          callIdRef.current = id;
+        },
+        signal: controller.signal,
+      });
+
+      // Inline reset: avoids needing resetWorkState in the effect deps,
+      // which would re-bind window listeners on every render.
+      stageRef.current = "idle";
+      setStage("idle");
+      abortRef.current = null;
+      callIdRef.current = null;
+
+      if (!result.ok && result.cancelled) return;
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -116,6 +152,9 @@ export function LeadDropzoneOverlay({
                     ? "transferring to secure storage"
                     : "whisper large v3 via groq"}
                 </p>
+                <Button variant="outline" size="sm" className="mt-2" onClick={onCancel}>
+                  Cancel
+                </Button>
               </>
             )}
           </div>

@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { cancelCallTranscriptionAction } from "@/lib/calls/actions";
 import { uploadCallFile, type UploadStage } from "@/lib/calls/upload-call-file";
 import { ALLOWED_AUDIO_MIME } from "@/lib/storage/audio";
 import { cn } from "@/lib/utils";
@@ -25,10 +26,32 @@ export function UploadCallDialog({ leadId }: { leadId: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  const reset = () => setStage("idle");
+  const abortRef = useRef<AbortController | null>(null);
+  const callIdRef = useRef<string | null>(null);
+
+  const reset = () => {
+    setStage("idle");
+    abortRef.current = null;
+    callIdRef.current = null;
+  };
 
   const handleFile = async (file: File) => {
-    const result = await uploadCallFile(file, leadId, setStage);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    callIdRef.current = null;
+
+    const result = await uploadCallFile(file, leadId, {
+      onStageChange: setStage,
+      onCallCreated: (id) => {
+        callIdRef.current = id;
+      },
+      signal: controller.signal,
+    });
+
+    if (!result.ok && result.cancelled) {
+      reset();
+      return;
+    }
     if (!result.ok) {
       toast.error(result.error);
       reset();
@@ -38,6 +61,14 @@ export function UploadCallDialog({ leadId }: { leadId: string }) {
     setOpen(false);
     reset();
     router.push(`/leads/${leadId}/calls/${result.callId}`);
+  };
+
+  const onCancel = () => {
+    abortRef.current?.abort();
+    const id = callIdRef.current;
+    if (id) void cancelCallTranscriptionAction(id);
+    toast.info("Transcription cancelled");
+    reset();
   };
 
   const onInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -54,14 +85,14 @@ export function UploadCallDialog({ leadId }: { leadId: string }) {
     if (file) void handleFile(file);
   };
 
-  const closable = stage === "idle";
-
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next && !closable) return;
-        if (!next) reset();
+        if (!next && stage !== "idle") {
+          // Closing via overlay/Escape during in-flight work cancels too.
+          onCancel();
+        }
         setOpen(next);
       }}
     >
@@ -121,6 +152,9 @@ export function UploadCallDialog({ leadId }: { leadId: string }) {
                 ? "transferring to secure storage"
                 : "whisper large v3 via groq"}
             </p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={onCancel}>
+              Cancel
+            </Button>
           </div>
         )}
       </DialogContent>
