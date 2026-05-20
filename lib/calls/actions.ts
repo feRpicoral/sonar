@@ -80,22 +80,29 @@ export async function transcribeCallAction(callId: string): Promise<TranscribeRe
 
   const call = await db.call.findUnique({
     where: { id: callId },
-    select: { id: true, leadId: true, audioPath: true, transcriptText: true },
+    select: { id: true, leadId: true, audioPath: true, transcriptText: true, deletedAt: true },
   });
   if (!call) return { error: "Call not found" };
+  if (call.deletedAt) return { ok: true }; // cancelled before we started - no-op
   if (call.transcriptText) return { ok: true }; // already done - idempotent
 
   const audio = await downloadCallAudio(call.audioPath);
   const result = await transcribeAudio(audio, { filename: `${call.id}.bin` });
 
-  await db.call.update({
-    where: { id: call.id },
+  // Race-safe: if cancelCallTranscriptionAction soft-deleted the row while
+  // Groq was working, updateMany matches zero rows and the transcript is
+  // discarded silently. Groq's sync endpoint has no cancel; this is the
+  // closest we can get without moving to the Batch API (24h SLA, wrong tool).
+  const written = await db.call.updateMany({
+    where: { id: call.id, deletedAt: null },
     data: {
       transcriptText: result.text,
       segments: result.segments as never,
       durationSec: result.durationSec ? Math.round(result.durationSec) : null,
     },
   });
+
+  if (written.count === 0) return { ok: true };
 
   await writeAudit({
     orgId: session.orgId,
@@ -112,5 +119,39 @@ export async function transcribeCallAction(callId: string): Promise<TranscribeRe
 
   revalidatePath(`/leads/${call.leadId}`);
   revalidatePath(`/leads/${call.leadId}/calls/${call.id}`);
+  return { ok: true };
+}
+
+// ─── Step 3 (optional): cancel an in-flight transcription ────────────────────
+
+export async function cancelCallTranscriptionAction(callId: string): Promise<TranscribeResult> {
+  const session = await requireSessionOrOnboard();
+  const db = getDb(session.orgId);
+
+  const call = await db.call.findUnique({
+    where: { id: callId },
+    select: { id: true, leadId: true, deletedAt: true, transcriptText: true },
+  });
+  if (!call) return { error: "Call not found" };
+  if (call.deletedAt) return { ok: true }; // idempotent
+  if (call.transcriptText) {
+    return { error: "Transcript already saved - delete instead" };
+  }
+
+  await db.call.update({
+    where: { id: callId },
+    data: { deletedAt: new Date() },
+  });
+
+  await writeAudit({
+    orgId: session.orgId,
+    actorUserId: session.userId,
+    action: "call.cancelled",
+    targetType: "call",
+    targetId: asCallId(callId),
+    metadata: { leadId: asLeadId(call.leadId) },
+  });
+
+  revalidatePath(`/leads/${call.leadId}`);
   return { ok: true };
 }

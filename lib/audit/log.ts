@@ -22,6 +22,7 @@ export type AuditAction =
   | "lead.assigned"
   | "call.uploaded"
   | "call.deleted"
+  | "call.cancelled"
   | "run.started"
   | "run.completed"
   | "run.failed"
