@@ -87,7 +87,9 @@ export async function transcribeCallAction(callId: string): Promise<TranscribeRe
   if (call.transcriptText) return { ok: true }; // already done - idempotent
 
   const audio = await downloadCallAudio(call.audioPath);
-  const result = await transcribeAudio(audio, { filename: `${call.id}.bin` });
+  // The Blob from Supabase Storage carries the contentType that was set
+  // during upload, so audio.type is the right MIME to feed Groq.
+  const result = await transcribeAudio(audio, { mime: audio.type, baseName: call.id });
 
   // Race-safe: if cancelCallTranscriptionAction soft-deleted the row while
   // Groq was working, updateMany matches zero rows and the transcript is

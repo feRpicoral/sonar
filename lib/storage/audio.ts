@@ -4,6 +4,8 @@ import { createAdminSupabase } from "@/lib/supabase/admin";
 export const CALL_AUDIO_BUCKET = "call-audio";
 export const MAX_AUDIO_BYTES = 100 * 1024 * 1024; // 100 MB
 
+// Mirrors what Groq's whisper endpoint accepts. AAC is intentionally absent -
+// Groq sniffs the filename extension and `.aac` is not on their allowlist.
 export const ALLOWED_AUDIO_MIME = [
   "audio/mpeg",
   "audio/mp3",
@@ -17,14 +19,44 @@ export const ALLOWED_AUDIO_MIME = [
   "audio/x-flac",
   "audio/x-m4a",
   "audio/m4a",
-  "audio/aac",
-  "audio/x-aac",
 ] as const;
 
 export type AudioMime = (typeof ALLOWED_AUDIO_MIME)[number];
 
 export function isAllowedAudioMime(mime: string): mime is AudioMime {
   return (ALLOWED_AUDIO_MIME as readonly string[]).includes(mime);
+}
+
+// Groq validates the upload's filename extension, not the multipart MIME, so
+// the file must be sent with a name like "audio.opus" / "audio.mp3" / etc.
+// Accepted extensions: flac, mp3, mp4, mpeg, mpga, m4a, ogg, opus, wav, webm.
+export function audioExtForMime(mime: string): string {
+  switch (mime) {
+    case "audio/mpeg":
+    case "audio/mp3":
+      return "mp3";
+    case "audio/mp4":
+      return "mp4";
+    case "audio/wav":
+    case "audio/x-wav":
+      return "wav";
+    case "audio/webm":
+      return "webm";
+    case "audio/ogg":
+      return "ogg";
+    case "audio/opus":
+      return "opus";
+    case "audio/flac":
+    case "audio/x-flac":
+      return "flac";
+    case "audio/x-m4a":
+    case "audio/m4a":
+      return "m4a";
+    default:
+      // Caller has already validated against ALLOWED_AUDIO_MIME, so this
+      // branch is defensive. mp3 is the safest fallback Groq accepts.
+      return "mp3";
+  }
 }
 
 export function callAudioPath(orgId: OrgId, callId: CallId): string {

@@ -138,7 +138,7 @@ export function LeadDropzoneOverlay({
                 <Upload className="text-primary h-8 w-8" />
                 <p className="text-base font-medium">Drop audio file to upload</p>
                 <p className="text-muted-foreground text-xs">
-                  mp3, mp4, m4a, opus, ogg, wav, flac, aac, webm - up to 100 MB
+                  mp3, mp4, m4a, opus, ogg, wav, flac, webm - up to 100 MB
                 </p>
               </>
             ) : (

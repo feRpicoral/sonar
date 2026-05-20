@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { audioExtForMime } from "@/lib/storage/audio";
+
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/audio/transcriptions";
 const MODEL = "whisper-large-v3";
 
@@ -37,13 +39,22 @@ function requireEnv(name: string): string {
  * Transcribe an audio blob via Groq's Whisper Large v3 endpoint
  * (OpenAI-compatible). Returns text + segments with timestamps, ready to
  * persist on the Call row.
+ *
+ * Groq parses the upload's filename extension (not the multipart MIME), so
+ * we derive the extension from `options.mime` (or `audio.type` as a fallback)
+ * and build a Groq-acceptable filename like `audio.opus`.
  */
 export async function transcribeAudio(
   audio: Blob,
-  options: { filename?: string } = {},
+  options: { mime?: string; baseName?: string } = {},
 ): Promise<TranscriptionResult> {
+  const mime = options.mime ?? audio.type;
+  const ext = audioExtForMime(mime);
+  const baseName = options.baseName ?? "audio";
+  const filename = `${baseName}.${ext}`;
+
   const formData = new FormData();
-  formData.append("file", audio, options.filename ?? "audio.bin");
+  formData.append("file", audio, filename);
   formData.append("model", MODEL);
   formData.append("response_format", "verbose_json");
   formData.append("timestamp_granularities[]", "segment");
