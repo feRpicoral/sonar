@@ -196,6 +196,22 @@ The Hobby tier covers a portfolio demo. Import the repo from GitHub, leave Build
 2. In Supabase **Authentication → URL Configuration**, add `https://<your-deployment>` to **Site URL** and **Redirect URLs**.
 3. In Stripe **Developers → Webhooks**, add an endpoint for `https://<your-deployment>/api/webhooks/stripe` with events `customer.subscription.created` / `updated` / `deleted` and `invoice.payment_succeeded` / `payment_failed`. Copy the signing secret it generates into `STRIPE_WEBHOOK_SECRET` in Vercel and redeploy.
 
+### Applying schema changes to production
+
+The Vercel build only runs `next build` - it does not apply pending Prisma migrations. After committing a schema change locally, run:
+
+```bash
+DATABASE_URL=<production-DATABASE_URL> yarn prisma migrate deploy
+```
+
+This applies every migration in `prisma/migrations/` that hasn't been recorded in `_prisma_migrations` yet. The command is idempotent (safe to re-run) and atomic per migration. Trigger the Vercel deploy after the migration succeeds.
+
+To automate this on every deploy, change the `build` script in `package.json` to `"prisma migrate deploy && next build"`. The trade-off: a bad migration breaks the deploy fast (good) but you lose the manual checkpoint before applying schema changes to prod (sometimes bad).
+
+### Sample audio for testing uploads
+
+`samples/saas-sales-call-example.opus` is a real B2B SaaS sales call (Ogg/Opus, ~1.3 MB) you can drag onto any lead's detail page to exercise the upload + transcription + agent run flow end-to-end.
+
 ## Project layout
 
 ```
