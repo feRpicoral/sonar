@@ -198,15 +198,17 @@ The Hobby tier covers a portfolio demo. Import the repo from GitHub, leave Build
 
 ### Applying schema changes to production
 
-The Vercel build only runs `next build` - it does not apply pending Prisma migrations. After committing a schema change locally, run:
+The Vercel build only runs `next build` - it does not apply pending Prisma migrations. After committing a schema change locally, run from your machine:
 
 ```bash
-DATABASE_URL=<production-DATABASE_URL> yarn prisma migrate deploy
+DATABASE_URL="<value of prod DIRECT_URL>" yarn prisma migrate deploy
 ```
 
-This applies every migration in `prisma/migrations/` that hasn't been recorded in `_prisma_migrations` yet. The command is idempotent (safe to re-run) and atomic per migration. Trigger the Vercel deploy after the migration succeeds.
+The variable name stays `DATABASE_URL` (that's what `prisma.config.ts` reads), but the **value** is the production direct connection on port 5432 - not the pooled URL. Prisma migrations issue DDL and take advisory locks that fight with PgBouncer's transaction pooling on 6543. The Vercel runtime keeps using the pooled URL for queries; only migrations need the direct path.
 
-To automate this on every deploy, change the `build` script in `package.json` to `"prisma migrate deploy && next build"`. The trade-off: a bad migration breaks the deploy fast (good) but you lose the manual checkpoint before applying schema changes to prod (sometimes bad).
+`prisma migrate deploy` applies every migration in `prisma/migrations/` that hasn't been recorded in `_prisma_migrations` yet. The command is idempotent (safe to re-run, no-ops once everything is applied) and atomic per migration. Trigger the Vercel deploy after the migration succeeds.
+
+To automate this on every deploy, change the `build` script in `package.json` to `"prisma migrate deploy && next build"` and set `DATABASE_URL` in Vercel to the direct URL just for the build step (Vercel doesn't separate build vs runtime env vars cleanly, so this approach is awkward in practice - the manual command is usually simpler).
 
 ### Sample audio for testing uploads
 
