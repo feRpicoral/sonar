@@ -45,7 +45,7 @@ export interface EmailSplitViewProps {
   status: string;
   leadId: string;
   leadName: string;
-  recipient: string;
+  recipient: string | null;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -197,7 +197,13 @@ export function EmailSplitView(props: EmailSplitViewProps) {
               >
                 <Pencil className="h-3.5 w-3.5" /> Edit
               </Button>
-              <Button size="sm" className="gap-1.5" onClick={onApprove} disabled={isPending}>
+              <Button
+                size="sm"
+                className="gap-1.5"
+                onClick={onApprove}
+                disabled={isPending || !recipient}
+                title={!recipient ? "Add an email to the lead first" : undefined}
+              >
                 <Send className="h-3.5 w-3.5" />
                 {isPending ? "Sending…" : "Approve & send"}
               </Button>
@@ -229,7 +235,13 @@ export function EmailSplitView(props: EmailSplitViewProps) {
             <div className="text-muted-foreground space-y-1 text-xs">
               <div>
                 <span className="text-muted-foreground/70 font-mono uppercase">To</span>{" "}
-                <span className="text-foreground">{recipient}</span>
+                {recipient ? (
+                  <span className="text-foreground">{recipient}</span>
+                ) : (
+                  <Link href={`/leads/${leadId}`} className="text-destructive hover:underline">
+                    No email on file - add one to the lead
+                  </Link>
+                )}
               </div>
               <div>
                 <span className="text-muted-foreground/70 font-mono uppercase">From</span>{" "}

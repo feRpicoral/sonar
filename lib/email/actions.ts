@@ -28,10 +28,20 @@ export async function approveAndSendEmailAction(
       body: true,
       status: true,
       runId: true,
+      run: {
+        select: {
+          lead: { select: { id: true, email: true } },
+        },
+      },
     },
   });
   if (!draft) return { error: "Draft not found" };
   if (draft.status === "SENT") return { error: "Already sent" };
+
+  const recipient = draft.run.lead.email;
+  if (!recipient) {
+    return { error: "Lead has no email on file - add one before sending." };
+  }
 
   await db.emailDraft.update({
     where: { id: draftId },
@@ -41,13 +51,6 @@ export async function approveAndSendEmailAction(
       approvedByUserId: session.userId,
     },
   });
-
-  // Demo: send to the rep's own inbox. In production we'd add lead.email and
-  // route to that - keeps the test inbox decoupled from real customers.
-  const recipient = session.email;
-  if (!recipient) {
-    return { error: "No recipient email available" };
-  }
 
   if (!process.env.RESEND_API_KEY) {
     await db.emailDraft.update({

@@ -19,7 +19,7 @@ export default async function ApproveEmailPage({ params }: { params: Promise<{ i
       status: true,
       run: {
         select: {
-          lead: { select: { id: true, name: true } },
+          lead: { select: { id: true, name: true, email: true } },
           call: { select: { segments: true } },
         },
       },
@@ -47,7 +47,7 @@ export default async function ApproveEmailPage({ params }: { params: Promise<{ i
       status={draft.status}
       leadId={draft.run.lead.id}
       leadName={draft.run.lead.name}
-      recipient={session.email}
+      recipient={draft.run.lead.email}
     />
   );
 }
