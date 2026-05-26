@@ -10,11 +10,11 @@ This project runs on **Next.js 16**, which has breaking changes from many agents
 
 ## What this is
 
-A B2B sales enablement SaaS. Multi-agent orchestration (LangGraph.js) processes sales call recordings to generate research, analysis, strategy, and follow-up emails. Multi-tenant workspace model with per-org billing.
+A B2B sales enablement SaaS. A sequential agent pipeline processes sales call recordings to generate research, analysis, strategy, and follow-up emails. Multi-tenant workspace model with per-org billing.
 
 ## Architecture pillars
 
-1. **Multi-agent with state** - LangGraph nodes return structured Zod outputs, never free text. State carries `orgId` / `userId`. Postgres checkpointer enables resume on `interrupt()`. Inngest is the executor; Supabase Realtime is the UI transport.
+1. **Multi-agent with state** - Sequential nodes (research, transcription, analysis, strategy, writer) return structured Zod outputs, never free text. The runner persists each `AgentRunStep` row so the run resumes from `AWAITING_APPROVAL` after the writer. Background execution is Next.js 16's `after()`; Supabase Realtime is the UI transport. (Inngest + LangGraph migration is a deferred follow-up - see `.env.example`.)
 2. **Audio with citations** - Groq Whisper Large v3 with VAD pre-trim. Segments + timestamps. Writer node outputs both prose and structured citations that link to transcript moments.
 3. **Multi-tenant** - Three layers: branded `OrgId` TypeScript types + Prisma `$extends` middleware + Postgres RLS. Every business table has `orgId` indexed.
 
@@ -39,12 +39,12 @@ A B2B sales enablement SaaS. Multi-agent orchestration (LangGraph.js) processes 
 - **DB**: Supabase Postgres with pgvector. RLS enabled on all multi-tenant tables.
 - **AI**: Anthropic SDK with prompt caching. Sonnet 4.6 for analysis / strategy / writer. Haiku 4.5 for research summarization.
 - **Audio**: Groq Whisper Large v3. VAD pre-trim before send.
-- **Background**: Inngest for agent runs, webhook retry, scheduled crons.
+- **Background**: Next.js 16 `after()` for agent runs (route `maxDuration = 60` on Hobby). Inngest for retries / crons is a deferred follow-up.
 - **Realtime**: Supabase Realtime channel per agent run.
 - **Streaming**: Vercel AI SDK on the writer node only (token-level UX).
 - **Billing**: Stripe test mode, idempotent webhook handling via `processed_stripe_events`.
 - **Email**: Resend, delivery-status webhook with signature verify.
-- **Rate limit**: Upstash Redis per-org.
+- **Rate limit**: deferred. Per-org limits with Upstash Redis are stubbed in `.env.example` but not enforced yet.
 
 ## Design language
 

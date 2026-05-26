@@ -7,8 +7,8 @@ export default function DocsOverviewPage() {
     <article>
       <H1>Sonar API</H1>
       <Lead>
-        Programmatic access to your sales pipeline - leads, calls, agent runs, and webhooks. REST
-        over HTTPS, JSON in / JSON out, scoped API keys.
+        Programmatic access to your sales pipeline - leads and agent runs. REST over HTTPS, JSON in
+        / JSON out, scoped API keys.
       </Lead>
 
       <H2>Base URL</H2>
@@ -35,9 +35,11 @@ export default function DocsOverviewPage() {
 
       <H3>Rate limiting</H3>
       <P>
-        Per-org rate limits apply: 10 agent runs/day on Free, unlimited on Pro. Every response
-        includes <InlineCode>RateLimit-Remaining</InlineCode> and{" "}
-        <InlineCode>Retry-After</InlineCode> headers when applicable.
+        Not yet enforced. Plan tier limits and per-org throttling are tracked as deferred work (see{" "}
+        <InlineCode>.env.example</InlineCode>). The API may add{" "}
+        <InlineCode>RateLimit-Remaining</InlineCode> and <InlineCode>Retry-After</InlineCode>{" "}
+        headers in a later release - until then, treat the API as best-effort and back off on{" "}
+        <InlineCode>5xx</InlineCode>.
       </P>
     </article>
   );

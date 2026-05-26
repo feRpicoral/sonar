@@ -77,12 +77,6 @@ export default function AuthenticationDocsPage() {
               Start agent runs. The runner uses the workspace&apos;s admin context for attribution.
             </Td>
           </tr>
-          <tr>
-            <Td>
-              <InlineCode>webhooks:read</InlineCode>
-            </Td>
-            <Td>Inspect webhook subscriptions and delivery history.</Td>
-          </tr>
         </tbody>
       </Table>
 

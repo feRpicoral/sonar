@@ -21,13 +21,7 @@ export function hashApiKey(plaintext: string): string {
   return createHash("sha256").update(plaintext).digest("hex");
 }
 
-export const VALID_SCOPES = [
-  "leads:read",
-  "leads:write",
-  "runs:read",
-  "runs:write",
-  "webhooks:read",
-] as const;
+export const VALID_SCOPES = ["leads:read", "leads:write", "runs:read", "runs:write"] as const;
 
 export type ApiKeyScope = (typeof VALID_SCOPES)[number];
 
@@ -36,7 +30,6 @@ export const SCOPE_LABELS: Record<ApiKeyScope, string> = {
   "leads:write": "Create / update leads",
   "runs:read": "Read agent runs and outputs",
   "runs:write": "Start agent runs",
-  "webhooks:read": "Inspect webhook deliveries",
 };
 
 export function isValidScope(s: string): s is ApiKeyScope {
