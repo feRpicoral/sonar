@@ -76,8 +76,18 @@ export async function uploadCallFile(
 
   // Race the server action against the abort signal so the UI moves on
   // immediately when the user cancels, even though Groq keeps working.
+  // transcribeCallAction can throw (Supabase download error, missing
+  // GROQ_API_KEY, Whisper failure, ...) - catch those too so the orphan
+  // cleanup runs even when the action rejects instead of returning an error.
   const transcribePromise = transcribeCallAction(prep.callId);
-  const result = await raceWithAbort(transcribePromise, signal);
+  let result: Awaited<ReturnType<typeof raceWithAbort<Awaited<typeof transcribePromise>>>>;
+  try {
+    result = await raceWithAbort(transcribePromise, signal);
+  } catch (err) {
+    await cleanupOrphanCall(prep.callId);
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message, callId: prep.callId };
+  }
   if (result.cancelled) {
     return { ok: false, error: "Cancelled", cancelled: true, callId: prep.callId };
   }
