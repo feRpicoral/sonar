@@ -4,6 +4,7 @@ import type { OrgId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
 
 import { SIGNATURE_HEADER, signWebhookPayload } from "./hmac";
+import { assertSafeWebhookUrl, UnsafeWebhookUrlError } from "./safe-url";
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -46,6 +47,23 @@ export async function deliverWebhook(input: DeliveryInput): Promise<{ delivered:
     },
     select: { id: true },
   });
+
+  // Re-validate the URL right before fetching. The subscription was checked at
+  // create time, but DNS may have rotated to an internal address since.
+  try {
+    await assertSafeWebhookUrl(input.url);
+  } catch (err) {
+    const message =
+      err instanceof UnsafeWebhookUrlError ? err.message : "URL failed safety validation";
+    await db.webhookDelivery.update({
+      where: { id: delivery.id },
+      data: {
+        status: "FAILED",
+        responseBody: message.slice(0, 2048),
+      },
+    });
+    return { delivered: false };
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);

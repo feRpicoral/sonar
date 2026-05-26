@@ -11,6 +11,7 @@ import { getDb } from "@/lib/db/with-org";
 import { deliverWebhook } from "./deliver";
 import { generateWebhookSecret } from "./hmac";
 import { WEBHOOK_EVENTS, type WebhookEventType } from "./publish";
+import { assertSafeWebhookUrl, UnsafeWebhookUrlError } from "./safe-url";
 
 const createSchema = z.object({
   url: z.string().url("Invalid URL"),
@@ -32,6 +33,15 @@ export async function createWebhookAction(input: {
   const allowed = new Set<string>(WEBHOOK_EVENTS);
   const bad = parsed.data.events.filter((e) => !allowed.has(e));
   if (bad.length > 0) return { error: `Unknown events: ${bad.join(", ")}` };
+
+  try {
+    await assertSafeWebhookUrl(parsed.data.url);
+  } catch (err) {
+    return {
+      error:
+        err instanceof UnsafeWebhookUrlError ? err.message : "Webhook URL failed safety validation",
+    };
+  }
 
   const events = [...new Set(parsed.data.events)] as WebhookEventType[];
   const secret = generateWebhookSecret();
