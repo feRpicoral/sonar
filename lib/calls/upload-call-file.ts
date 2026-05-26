@@ -1,4 +1,8 @@
-import { prepareCallUploadAction, transcribeCallAction } from "@/lib/calls/actions";
+import {
+  cancelCallTranscriptionAction,
+  prepareCallUploadAction,
+  transcribeCallAction,
+} from "@/lib/calls/actions";
 import { CALL_AUDIO_BUCKET, isAllowedAudioMime, MAX_AUDIO_BYTES } from "@/lib/storage/audio";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 
@@ -60,6 +64,7 @@ export async function uploadCallFile(
     .from(CALL_AUDIO_BUCKET)
     .uploadToSignedUrl(prep.path, prep.token, file, { contentType: file.type });
   if (uploadError) {
+    await cleanupOrphanCall(prep.callId);
     return { ok: false, error: `Upload failed: ${uploadError.message}`, callId: prep.callId };
   }
 
@@ -77,10 +82,25 @@ export async function uploadCallFile(
     return { ok: false, error: "Cancelled", cancelled: true, callId: prep.callId };
   }
   if (result.value.error) {
+    await cleanupOrphanCall(prep.callId);
     return { ok: false, error: result.value.error, callId: prep.callId };
   }
 
   return { ok: true, callId: prep.callId };
+}
+
+/**
+ * Soft-delete a Call row that never got past upload/transcription. Without
+ * this, the lead page would show a permanent "Transcribing..." entry with no
+ * storage object behind it. Failures here are swallowed - the original
+ * upload/transcribe error is the more useful thing to surface.
+ */
+async function cleanupOrphanCall(callId: string): Promise<void> {
+  try {
+    await cancelCallTranscriptionAction(callId);
+  } catch {
+    // Best effort; the user already sees the upload/transcribe error.
+  }
 }
 
 async function raceWithAbort<T>(

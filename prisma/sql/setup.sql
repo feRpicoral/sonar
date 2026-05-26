@@ -155,7 +155,8 @@ VALUES (
   104857600, -- 100 MB
   ARRAY[
     'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/wav', 'audio/x-wav',
-    'audio/webm', 'audio/ogg', 'audio/flac', 'audio/x-m4a', 'audio/m4a'
+    'audio/webm', 'audio/ogg', 'audio/opus', 'audio/flac', 'audio/x-m4a',
+    'audio/m4a'
   ]
 )
 ON CONFLICT (id) DO UPDATE SET
