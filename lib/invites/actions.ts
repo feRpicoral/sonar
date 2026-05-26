@@ -13,6 +13,12 @@ import { getDb } from "@/lib/db/with-org";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { createServerSupabase } from "@/lib/supabase/server";
 
+// Thrown inside the accept transaction when a concurrent acceptance wins the
+// membership.create. Throwing rolls the tx back (so acceptedAt stays null);
+// caught right outside the $transaction and turned into the already_member
+// result so the caller gets a friendly message.
+class AlreadyMemberError extends Error {}
+
 // ─── Create invite (admin only) ────────────────────────────────────────────
 
 const inviteSchema = z.object({
@@ -102,26 +108,54 @@ export async function acceptInviteAction(token: string): Promise<{ error?: strin
     update: {},
   });
 
-  // Atomic accept: only the caller that flips acceptedAt from null wins. A
-  // concurrent acceptance sees count = 0 and bails before creating membership.
-  const result = await prisma.$transaction(async (tx) => {
-    const claim = await tx.invite.updateMany({
-      where: { id: invite.id, acceptedAt: null },
-      data: { acceptedAt: new Date() },
-    });
-    if (claim.count === 0) return { ok: false as const, reason: "race" as const };
+  // Atomic accept: check existing membership BEFORE flipping acceptedAt, so an
+  // already-member visiting an open invite link doesn't burn it. The
+  // updateMany then serves as the concurrency claim - whichever caller flips
+  // null -> now wins, others see count = 0 and bail. The P2002 catch covers
+  // the tight race where a concurrent acceptance creates the membership
+  // between our findUnique and our membership.create.
+  const result: { ok: true } | { ok: false; reason: "race" | "already_member" } = await prisma
+    .$transaction(async (tx) => {
+      const existingMembership = await tx.membership.findUnique({
+        where: { orgId_userId: { orgId: invite.orgId, userId: user.id } },
+        select: { id: true },
+      });
+      if (existingMembership) {
+        return { ok: false as const, reason: "already_member" as const };
+      }
 
-    const existingMembership = await tx.membership.findUnique({
-      where: { orgId_userId: { orgId: invite.orgId, userId: user.id } },
-      select: { id: true },
-    });
-    if (existingMembership) return { ok: false as const, reason: "already_member" as const };
+      const claim = await tx.invite.updateMany({
+        where: { id: invite.id, acceptedAt: null },
+        data: { acceptedAt: new Date() },
+      });
+      if (claim.count === 0) return { ok: false as const, reason: "race" as const };
 
-    await tx.membership.create({
-      data: { orgId: invite.orgId, userId: user.id, role: invite.role },
+      try {
+        await tx.membership.create({
+          data: { orgId: invite.orgId, userId: user.id, role: invite.role },
+        });
+      } catch (err) {
+        if (
+          typeof err === "object" &&
+          err !== null &&
+          "code" in err &&
+          (err as { code: unknown }).code === "P2002"
+        ) {
+          // Concurrent acceptance won the membership.create; throw so the
+          // transaction rolls back (including the acceptedAt update) and the
+          // user gets the already_member message.
+          throw new AlreadyMemberError();
+        }
+        throw err;
+      }
+      return { ok: true as const };
+    })
+    .catch((err: unknown) => {
+      if (err instanceof AlreadyMemberError) {
+        return { ok: false as const, reason: "already_member" as const };
+      }
+      throw err;
     });
-    return { ok: true as const };
-  });
 
   if (!result.ok) {
     return {
