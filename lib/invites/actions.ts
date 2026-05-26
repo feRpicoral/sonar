@@ -150,6 +150,10 @@ export async function acceptInviteAction(token: string): Promise<{ error?: strin
 
 // ─── Member admin: change role / remove ────────────────────────────────────
 
+type AdminMutationResult =
+  | { ok: false; error: string }
+  | { ok: true; previousRole: "ADMIN" | "MEMBER"; targetUserId: string };
+
 export async function changeMemberRoleAction(
   membershipId: string,
   newRole: "ADMIN" | "MEMBER",
@@ -157,34 +161,52 @@ export async function changeMemberRoleAction(
   const session = await requireAdmin();
   const prisma = getPrisma();
 
-  const membership = await prisma.membership.findUnique({
-    where: { id: membershipId },
-    select: { orgId: true, userId: true, role: true },
-  });
-  if (!membership || membership.orgId !== session.orgId) {
-    return { error: "Membership not found" };
-  }
-  if (membership.role === newRole) return {};
+  const result: AdminMutationResult = await prisma.$transaction(async (tx) => {
+    // Row-lock every admin in this org so two concurrent demote/remove calls
+    // can't both pass the "at least one admin remains" check. Postgres
+    // re-evaluates FOR UPDATE after the holder commits, so the count below
+    // sees the post-commit state.
+    await tx.$queryRaw`
+      SELECT id FROM memberships
+      WHERE org_id = ${session.orgId}::uuid AND role = 'ADMIN'
+      FOR UPDATE
+    `;
 
-  // Admin invariants: workspace control can never be locked out.
-  // - Admins can't demote themselves (forces another admin to do it).
-  // - The last admin can't be demoted, period.
-  if (membership.role === "ADMIN" && newRole === "MEMBER") {
-    if (membership.userId === session.userId) {
-      return { error: "You cannot change your own admin role - ask another admin" };
-    }
-    const adminCount = await prisma.membership.count({
-      where: { orgId: session.orgId, role: "ADMIN" },
+    const membership = await tx.membership.findUnique({
+      where: { id: membershipId },
+      select: { orgId: true, userId: true, role: true },
     });
-    if (adminCount <= 1) {
-      return { error: "Workspace must have at least one admin" };
+    if (!membership || membership.orgId !== session.orgId) {
+      return { ok: false, error: "Membership not found" };
     }
-  }
+    if (membership.role === newRole) {
+      return { ok: true, previousRole: membership.role, targetUserId: membership.userId };
+    }
 
-  await prisma.membership.update({
-    where: { id: membershipId },
-    data: { role: newRole },
+    if (membership.role === "ADMIN" && newRole === "MEMBER") {
+      if (membership.userId === session.userId) {
+        return { ok: false, error: "You cannot change your own admin role - ask another admin" };
+      }
+      const adminCount = await tx.membership.count({
+        where: { orgId: session.orgId, role: "ADMIN" },
+      });
+      if (adminCount <= 1) {
+        return { ok: false, error: "Workspace must have at least one admin" };
+      }
+    }
+
+    await tx.membership.update({
+      where: { id: membershipId },
+      data: { role: newRole },
+    });
+    return { ok: true, previousRole: membership.role, targetUserId: membership.userId };
   });
+
+  if (!result.ok) return { error: result.error };
+  if (result.previousRole === newRole) {
+    revalidatePath("/settings/members");
+    return {};
+  }
 
   await writeAudit({
     orgId: session.orgId,
@@ -192,7 +214,7 @@ export async function changeMemberRoleAction(
     action: "member.role_changed",
     targetType: "membership",
     targetId: asMembershipId(membershipId),
-    metadata: { previousRole: membership.role, newRole, targetUserId: membership.userId },
+    metadata: { previousRole: result.previousRole, newRole, targetUserId: result.targetUserId },
   });
 
   revalidatePath("/settings/members");
@@ -203,26 +225,37 @@ export async function removeMemberAction(membershipId: string): Promise<{ error?
   const session = await requireAdmin();
   const prisma = getPrisma();
 
-  const membership = await prisma.membership.findUnique({
-    where: { id: membershipId },
-    select: { orgId: true, userId: true, role: true },
-  });
-  if (!membership || membership.orgId !== session.orgId) {
-    return { error: "Membership not found" };
-  }
-  if (membership.userId === session.userId) {
-    return { error: "You cannot remove yourself" };
-  }
-  if (membership.role === "ADMIN") {
-    const adminCount = await prisma.membership.count({
-      where: { orgId: session.orgId, role: "ADMIN" },
-    });
-    if (adminCount <= 1) {
-      return { error: "Workspace must have at least one admin" };
-    }
-  }
+  const result: AdminMutationResult = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT id FROM memberships
+      WHERE org_id = ${session.orgId}::uuid AND role = 'ADMIN'
+      FOR UPDATE
+    `;
 
-  await prisma.membership.delete({ where: { id: membershipId } });
+    const membership = await tx.membership.findUnique({
+      where: { id: membershipId },
+      select: { orgId: true, userId: true, role: true },
+    });
+    if (!membership || membership.orgId !== session.orgId) {
+      return { ok: false, error: "Membership not found" };
+    }
+    if (membership.userId === session.userId) {
+      return { ok: false, error: "You cannot remove yourself" };
+    }
+    if (membership.role === "ADMIN") {
+      const adminCount = await tx.membership.count({
+        where: { orgId: session.orgId, role: "ADMIN" },
+      });
+      if (adminCount <= 1) {
+        return { ok: false, error: "Workspace must have at least one admin" };
+      }
+    }
+
+    await tx.membership.delete({ where: { id: membershipId } });
+    return { ok: true, previousRole: membership.role, targetUserId: membership.userId };
+  });
+
+  if (!result.ok) return { error: result.error };
 
   await writeAudit({
     orgId: session.orgId,
@@ -230,7 +263,7 @@ export async function removeMemberAction(membershipId: string): Promise<{ error?
     action: "member.removed",
     targetType: "membership",
     targetId: asMembershipId(membershipId),
-    metadata: { removedUserId: membership.userId, role: membership.role },
+    metadata: { removedUserId: result.targetUserId, role: result.previousRole },
   });
 
   revalidatePath("/settings/members");
