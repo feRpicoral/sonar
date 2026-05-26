@@ -42,11 +42,11 @@ The reviewer sees a split view with the email on the left and the transcript on 
 
 Three layers of tenant isolation:
 
-| Layer                                | Mechanism                                              | File                   |
-| ------------------------------------ | ------------------------------------------------------ | ---------------------- |
-| Branded TypeScript IDs at call sites | `OrgId`, `UserId`, `LeadId`, etc.                      | `lib/db/types.ts`      |
-| Prisma `$extends` middleware         | `getDb(orgId)` auto-injects `orgId` on every operation | `lib/db/with-org.ts`   |
-| Postgres RLS                         | `is_member_of(org_id)` policy on every tenant table    | `prisma/sql/setup.sql` |
+| Layer                                | Mechanism                                              | File                                                     |
+| ------------------------------------ | ------------------------------------------------------ | -------------------------------------------------------- |
+| Branded TypeScript IDs at call sites | `OrgId`, `UserId`, `LeadId`, etc.                      | `lib/db/types.ts`                                        |
+| Prisma `$extends` middleware         | `getDb(orgId)` auto-injects `orgId` on every operation | `lib/db/with-org.ts`                                     |
+| Postgres RLS                         | `is_member_of(org_id)` policy on every tenant table    | `prisma/migrations/*_rls_triggers_storage/migration.sql` |
 
 Plus the rest of the B2B surface:
 
@@ -136,7 +136,13 @@ yarn install                                  # postinstall runs prisma generate
 
 ### First-time database setup
 
-The Supabase project comes with several pre-installed extensions (`pg_stat_statements`, `pgcrypto`, `supabase_vault`, `uuid-ossp`) that show up as drift in `prisma migrate dev`. Sonar's `schema.prisma` declares them so the schema lines up with reality, but for an existing Supabase project that's never had Prisma run against it, you bootstrap a baseline migration manually:
+```bash
+yarn prisma migrate deploy
+```
+
+`migrate deploy` applies every migration in `prisma/migrations/` that hasn't been recorded in `_prisma_migrations` yet, including the schema baseline (`0_init`) and the tenancy migration that installs the RLS policies, the `public.users` <-> `auth.users` sync trigger, the pgvector composite-index pattern, and the `call-audio` storage bucket. The tenancy migration is idempotent, so it's safe to apply on top of a database that previously had `prisma/sql/setup.sql` pasted in by hand.
+
+For repos where the schema baseline doesn't exist yet (a brand-new Supabase project with `0_init` missing), regenerate it from the current schema before deploying:
 
 ```bash
 mkdir -p prisma/migrations/0_init
@@ -149,10 +155,6 @@ yarn prisma migrate diff \
 
 yarn prisma migrate deploy
 ```
-
-`migrate diff` writes the SQL needed to take an empty database to the current schema state. `migrate deploy` applies it and records the migration in `_prisma_migrations`. From here, `yarn prisma migrate dev --name <change>` works normally for future schema changes; drift detection compares against the baseline you just created.
-
-Then apply the RLS policies, the auth trigger, and the storage bucket: copy `prisma/sql/setup.sql` into the Supabase SQL editor and run it. The script is idempotent and safe to re-run.
 
 Optional demo data:
 
@@ -247,7 +249,7 @@ lib/
 
 prisma/
   schema.prisma   18 models
-  sql/setup.sql   pgvector, auth trigger, RLS policies, storage bucket
+  migrations/     baseline + RLS / auth trigger / storage bucket
   seed.ts         demo workspace with 10 leads and a sample call
 ```
 
