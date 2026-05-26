@@ -37,20 +37,27 @@ export async function approveAndSendEmailAction(
   });
   if (!draft) return { error: "Draft not found" };
   if (draft.status === "SENT") return { error: "Already sent" };
+  if (draft.status === "APPROVED") return { error: "Send already in progress" };
 
   const recipient = draft.run.lead.email;
   if (!recipient) {
     return { error: "Lead has no email on file - add one before sending." };
   }
 
-  await db.emailDraft.update({
-    where: { id: draftId },
+  // Atomic claim: only the caller that flips DRAFT/FAILED -> APPROVED proceeds
+  // to Resend. A second concurrent click sees count = 0 and bails before the
+  // network call, so we can't double-send the same draft.
+  const claim = await db.emailDraft.updateMany({
+    where: { id: draftId, status: { in: ["DRAFT", "FAILED"] } },
     data: {
       status: "APPROVED",
       approvedAt: new Date(),
       approvedByUserId: session.userId,
     },
   });
+  if (claim.count === 0) {
+    return { error: "Send already in progress" };
+  }
 
   if (!process.env.RESEND_API_KEY) {
     await db.emailDraft.update({
@@ -79,6 +86,7 @@ export async function approveAndSendEmailAction(
       subject: draft.subject,
       text: draft.body,
       replyTo: session.email,
+      idempotencyKey: `draft:${draft.id}`,
     });
     await db.emailDraft.update({
       where: { id: draftId },

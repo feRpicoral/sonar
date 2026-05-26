@@ -19,6 +19,12 @@ export interface SendOptions {
   subject: string;
   text: string;
   replyTo?: string;
+  /**
+   * Resend caches the response keyed by this value for 24 hours. Pass a stable
+   * per-send identifier (e.g. draft id) so a transient client retry doesn't
+   * trigger a second delivery if Resend already accepted the first call.
+   */
+  idempotencyKey?: string;
 }
 
 export interface SendResult {
@@ -27,13 +33,16 @@ export interface SendResult {
 
 export async function sendEmail(options: SendOptions): Promise<SendResult> {
   const client = getClient();
-  const { data, error } = await client.emails.send({
-    from: getFromAddress(),
-    to: [options.to],
-    subject: options.subject,
-    text: options.text,
-    replyTo: options.replyTo,
-  });
+  const { data, error } = await client.emails.send(
+    {
+      from: getFromAddress(),
+      to: [options.to],
+      subject: options.subject,
+      text: options.text,
+      replyTo: options.replyTo,
+    },
+    options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : undefined,
+  );
   if (error) throw new Error(`Resend send failed: ${error.message}`);
   if (!data?.id) throw new Error("Resend returned no message id");
   return { messageId: data.id };
