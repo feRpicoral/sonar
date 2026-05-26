@@ -76,11 +76,20 @@ export async function acceptInviteAction(token: string): Promise<{ error?: strin
   const prisma = getPrisma();
   const invite = await prisma.invite.findUnique({
     where: { token },
-    select: { id: true, orgId: true, role: true, acceptedAt: true, expiresAt: true },
+    select: { id: true, orgId: true, role: true, email: true, acceptedAt: true, expiresAt: true },
   });
   if (!invite) return { error: "Invalid invite" };
   if (invite.acceptedAt) return { error: "Invite already accepted" };
   if (invite.expiresAt < new Date()) return { error: "Invite expired" };
+
+  // Targeted invites are bound to the recipient's email - anyone else with the
+  // link can't accept it. Open invites (email == null) stay shareable.
+  if (invite.email) {
+    const userEmail = (user.email ?? "").trim().toLowerCase();
+    if (userEmail !== invite.email.trim().toLowerCase()) {
+      return { error: "This invite is for a different email address" };
+    }
+  }
 
   await prisma.user.upsert({
     where: { id: user.id },
@@ -93,15 +102,35 @@ export async function acceptInviteAction(token: string): Promise<{ error?: strin
     update: {},
   });
 
-  await prisma.$transaction([
-    prisma.membership.create({
-      data: { orgId: invite.orgId, userId: user.id, role: invite.role },
-    }),
-    prisma.invite.update({
-      where: { id: invite.id },
+  // Atomic accept: only the caller that flips acceptedAt from null wins. A
+  // concurrent acceptance sees count = 0 and bails before creating membership.
+  const result = await prisma.$transaction(async (tx) => {
+    const claim = await tx.invite.updateMany({
+      where: { id: invite.id, acceptedAt: null },
       data: { acceptedAt: new Date() },
-    }),
-  ]);
+    });
+    if (claim.count === 0) return { ok: false as const, reason: "race" as const };
+
+    const existingMembership = await tx.membership.findUnique({
+      where: { orgId_userId: { orgId: invite.orgId, userId: user.id } },
+      select: { id: true },
+    });
+    if (existingMembership) return { ok: false as const, reason: "already_member" as const };
+
+    await tx.membership.create({
+      data: { orgId: invite.orgId, userId: user.id, role: invite.role },
+    });
+    return { ok: true as const };
+  });
+
+  if (!result.ok) {
+    return {
+      error:
+        result.reason === "already_member"
+          ? "You are already a member of this workspace"
+          : "Invite already accepted",
+    };
+  }
 
   const admin = createAdminSupabase();
   await admin.auth.admin.updateUserById(user.id, {
@@ -135,6 +164,22 @@ export async function changeMemberRoleAction(
   if (!membership || membership.orgId !== session.orgId) {
     return { error: "Membership not found" };
   }
+  if (membership.role === newRole) return {};
+
+  // Admin invariants: workspace control can never be locked out.
+  // - Admins can't demote themselves (forces another admin to do it).
+  // - The last admin can't be demoted, period.
+  if (membership.role === "ADMIN" && newRole === "MEMBER") {
+    if (membership.userId === session.userId) {
+      return { error: "You cannot change your own admin role - ask another admin" };
+    }
+    const adminCount = await prisma.membership.count({
+      where: { orgId: session.orgId, role: "ADMIN" },
+    });
+    if (adminCount <= 1) {
+      return { error: "Workspace must have at least one admin" };
+    }
+  }
 
   await prisma.membership.update({
     where: { id: membershipId },
@@ -167,6 +212,14 @@ export async function removeMemberAction(membershipId: string): Promise<{ error?
   }
   if (membership.userId === session.userId) {
     return { error: "You cannot remove yourself" };
+  }
+  if (membership.role === "ADMIN") {
+    const adminCount = await prisma.membership.count({
+      where: { orgId: session.orgId, role: "ADMIN" },
+    });
+    if (adminCount <= 1) {
+      return { error: "Workspace must have at least one admin" };
+    }
   }
 
   await prisma.membership.delete({ where: { id: membershipId } });
