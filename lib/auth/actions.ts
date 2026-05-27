@@ -51,8 +51,8 @@ export async function signupAction(_prev: ActionResult, formData: FormData): Pro
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
-      // The auth trigger in prisma/sql/setup.sql reads raw_user_meta_data
-      // and propagates full_name to public.users.name.
+      // The handle_auth_user trigger (installed by the tenancy migration)
+      // reads raw_user_meta_data and propagates full_name to public.users.name.
       data: { full_name: parsed.data.name },
       emailRedirectTo: `${appUrl()}/auth/callback?next=/create-org`,
     },

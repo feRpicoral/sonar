@@ -1,23 +1,11 @@
--- Sonar — post-init database setup.
+-- Sonar: tenancy plumbing that lives outside the Prisma schema.
 --
--- Run this AFTER `prisma migrate dev --name init` has created the base schema.
--- It is idempotent (CREATE IF NOT EXISTS / CREATE OR REPLACE everywhere).
---
--- Apply via either:
---   psql "$DATABASE_URL" -f prisma/sql/setup.sql
--- or paste into Supabase SQL editor.
+-- Idempotent on purpose so applying it on top of a database that previously
+-- had `prisma/sql/setup.sql` pasted by hand is a no-op. Every block uses
+-- CREATE OR REPLACE / IF NOT EXISTS / ON CONFLICT.
 
 -- ─────────────────────────────────────────────────────────────
--- pgvector extension
--- ─────────────────────────────────────────────────────────────
-
-CREATE EXTENSION IF NOT EXISTS vector;
-
--- ─────────────────────────────────────────────────────────────
--- public.users ↔ auth.users sync trigger
---
--- Keeps the Prisma User mirror table in sync with Supabase Auth.
--- Fires on insert + update so OAuth name/avatar changes propagate.
+-- public.users <-> auth.users sync trigger
 -- ─────────────────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.handle_auth_user()
@@ -51,14 +39,7 @@ CREATE TRIGGER on_auth_user_changed
   FOR EACH ROW EXECUTE FUNCTION public.handle_auth_user();
 
 -- ─────────────────────────────────────────────────────────────
--- Row Level Security — defense in depth
---
--- The application layer enforces tenancy via Prisma `$extends` (see
--- lib/db/with-org.ts). These RLS policies are the second layer: any
--- direct Supabase client query (Storage, Realtime, raw RPC) is bound
--- to the caller's memberships.
---
--- Policies use the standard "user is a member of the row's org" rule.
+-- Row Level Security - defense in depth
 -- ─────────────────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.is_member_of(target_org uuid)
@@ -74,7 +55,6 @@ AS $$
   );
 $$;
 
--- Per-table policies. Each table that carries org_id gets the same shape.
 DO $$
 DECLARE
   t text;
@@ -98,21 +78,18 @@ BEGIN
   END LOOP;
 END $$;
 
--- Organizations: visible if you're a member.
 ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS org_visibility ON public.organizations;
 CREATE POLICY org_visibility ON public.organizations
   FOR SELECT
   USING (public.is_member_of(id));
 
--- Memberships: see your own + everyone in your orgs.
 ALTER TABLE public.memberships ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS membership_visibility ON public.memberships;
 CREATE POLICY membership_visibility ON public.memberships
   FOR SELECT
   USING (user_id = auth.uid() OR public.is_member_of(org_id));
 
--- Users: see yourself and other users in your orgs.
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS user_visibility ON public.users;
 CREATE POLICY user_visibility ON public.users
@@ -126,11 +103,7 @@ CREATE POLICY user_visibility ON public.users
   );
 
 -- ─────────────────────────────────────────────────────────────
--- pgvector indexes — multi-tenant pattern
---
--- pgvector's HNSW indexes don't support composite (org_id, embedding)
--- natively. Instead: btree on org_id (narrows to tenant rows) +
--- HNSW on embedding (orders the narrowed set). Planner uses both.
+-- pgvector composite-index pattern
 -- ─────────────────────────────────────────────────────────────
 
 CREATE INDEX IF NOT EXISTS lead_embeddings_org_idx
@@ -143,8 +116,7 @@ CREATE INDEX IF NOT EXISTS lead_embeddings_hnsw
 -- ─────────────────────────────────────────────────────────────
 -- Storage bucket for call audio
 --
--- Private bucket — app generates signed upload/download URLs via the admin
--- client (lib/supabase/admin.ts), so we don't need permissive RLS on storage.
+-- Private bucket; app generates signed URLs via the service role.
 -- ─────────────────────────────────────────────────────────────
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
