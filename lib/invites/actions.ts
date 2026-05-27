@@ -13,6 +13,12 @@ import { getDb } from "@/lib/db/with-org";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { createServerSupabase } from "@/lib/supabase/server";
 
+// Thrown inside the accept transaction when a concurrent acceptance wins the
+// membership.create. Throwing rolls the tx back (so acceptedAt stays null);
+// caught right outside the $transaction and turned into the already_member
+// result so the caller gets a friendly message.
+class AlreadyMemberError extends Error {}
+
 // ─── Create invite (admin only) ────────────────────────────────────────────
 
 const inviteSchema = z.object({
@@ -76,11 +82,20 @@ export async function acceptInviteAction(token: string): Promise<{ error?: strin
   const prisma = getPrisma();
   const invite = await prisma.invite.findUnique({
     where: { token },
-    select: { id: true, orgId: true, role: true, acceptedAt: true, expiresAt: true },
+    select: { id: true, orgId: true, role: true, email: true, acceptedAt: true, expiresAt: true },
   });
   if (!invite) return { error: "Invalid invite" };
   if (invite.acceptedAt) return { error: "Invite already accepted" };
   if (invite.expiresAt < new Date()) return { error: "Invite expired" };
+
+  // Targeted invites are bound to the recipient's email - anyone else with the
+  // link can't accept it. Open invites (email == null) stay shareable.
+  if (invite.email) {
+    const userEmail = (user.email ?? "").trim().toLowerCase();
+    if (userEmail !== invite.email.trim().toLowerCase()) {
+      return { error: "This invite is for a different email address" };
+    }
+  }
 
   await prisma.user.upsert({
     where: { id: user.id },
@@ -93,15 +108,63 @@ export async function acceptInviteAction(token: string): Promise<{ error?: strin
     update: {},
   });
 
-  await prisma.$transaction([
-    prisma.membership.create({
-      data: { orgId: invite.orgId, userId: user.id, role: invite.role },
-    }),
-    prisma.invite.update({
-      where: { id: invite.id },
-      data: { acceptedAt: new Date() },
-    }),
-  ]);
+  // Atomic accept: check existing membership BEFORE flipping acceptedAt, so an
+  // already-member visiting an open invite link doesn't burn it. The
+  // updateMany then serves as the concurrency claim - whichever caller flips
+  // null -> now wins, others see count = 0 and bail. The P2002 catch covers
+  // the tight race where a concurrent acceptance creates the membership
+  // between our findUnique and our membership.create.
+  const result: { ok: true } | { ok: false; reason: "race" | "already_member" } = await prisma
+    .$transaction(async (tx) => {
+      const existingMembership = await tx.membership.findUnique({
+        where: { orgId_userId: { orgId: invite.orgId, userId: user.id } },
+        select: { id: true },
+      });
+      if (existingMembership) {
+        return { ok: false as const, reason: "already_member" as const };
+      }
+
+      const claim = await tx.invite.updateMany({
+        where: { id: invite.id, acceptedAt: null },
+        data: { acceptedAt: new Date() },
+      });
+      if (claim.count === 0) return { ok: false as const, reason: "race" as const };
+
+      try {
+        await tx.membership.create({
+          data: { orgId: invite.orgId, userId: user.id, role: invite.role },
+        });
+      } catch (err) {
+        if (
+          typeof err === "object" &&
+          err !== null &&
+          "code" in err &&
+          (err as { code: unknown }).code === "P2002"
+        ) {
+          // Concurrent acceptance won the membership.create; throw so the
+          // transaction rolls back (including the acceptedAt update) and the
+          // user gets the already_member message.
+          throw new AlreadyMemberError();
+        }
+        throw err;
+      }
+      return { ok: true as const };
+    })
+    .catch((err: unknown) => {
+      if (err instanceof AlreadyMemberError) {
+        return { ok: false as const, reason: "already_member" as const };
+      }
+      throw err;
+    });
+
+  if (!result.ok) {
+    return {
+      error:
+        result.reason === "already_member"
+          ? "You are already a member of this workspace"
+          : "Invite already accepted",
+    };
+  }
 
   const admin = createAdminSupabase();
   await admin.auth.admin.updateUserById(user.id, {
@@ -121,6 +184,10 @@ export async function acceptInviteAction(token: string): Promise<{ error?: strin
 
 // ─── Member admin: change role / remove ────────────────────────────────────
 
+type AdminMutationResult =
+  | { ok: false; error: string }
+  | { ok: true; previousRole: "ADMIN" | "MEMBER"; targetUserId: string };
+
 export async function changeMemberRoleAction(
   membershipId: string,
   newRole: "ADMIN" | "MEMBER",
@@ -128,18 +195,52 @@ export async function changeMemberRoleAction(
   const session = await requireAdmin();
   const prisma = getPrisma();
 
-  const membership = await prisma.membership.findUnique({
-    where: { id: membershipId },
-    select: { orgId: true, userId: true, role: true },
-  });
-  if (!membership || membership.orgId !== session.orgId) {
-    return { error: "Membership not found" };
-  }
+  const result: AdminMutationResult = await prisma.$transaction(async (tx) => {
+    // Row-lock every admin in this org so two concurrent demote/remove calls
+    // can't both pass the "at least one admin remains" check. Postgres
+    // re-evaluates FOR UPDATE after the holder commits, so the count below
+    // sees the post-commit state.
+    await tx.$queryRaw`
+      SELECT id FROM memberships
+      WHERE org_id = ${session.orgId}::uuid AND role = 'ADMIN'
+      FOR UPDATE
+    `;
 
-  await prisma.membership.update({
-    where: { id: membershipId },
-    data: { role: newRole },
+    const membership = await tx.membership.findUnique({
+      where: { id: membershipId },
+      select: { orgId: true, userId: true, role: true },
+    });
+    if (!membership || membership.orgId !== session.orgId) {
+      return { ok: false, error: "Membership not found" };
+    }
+    if (membership.role === newRole) {
+      return { ok: true, previousRole: membership.role, targetUserId: membership.userId };
+    }
+
+    if (membership.role === "ADMIN" && newRole === "MEMBER") {
+      if (membership.userId === session.userId) {
+        return { ok: false, error: "You cannot change your own admin role - ask another admin" };
+      }
+      const adminCount = await tx.membership.count({
+        where: { orgId: session.orgId, role: "ADMIN" },
+      });
+      if (adminCount <= 1) {
+        return { ok: false, error: "Workspace must have at least one admin" };
+      }
+    }
+
+    await tx.membership.update({
+      where: { id: membershipId },
+      data: { role: newRole },
+    });
+    return { ok: true, previousRole: membership.role, targetUserId: membership.userId };
   });
+
+  if (!result.ok) return { error: result.error };
+  if (result.previousRole === newRole) {
+    revalidatePath("/settings/members");
+    return {};
+  }
 
   await writeAudit({
     orgId: session.orgId,
@@ -147,7 +248,7 @@ export async function changeMemberRoleAction(
     action: "member.role_changed",
     targetType: "membership",
     targetId: asMembershipId(membershipId),
-    metadata: { previousRole: membership.role, newRole, targetUserId: membership.userId },
+    metadata: { previousRole: result.previousRole, newRole, targetUserId: result.targetUserId },
   });
 
   revalidatePath("/settings/members");
@@ -158,18 +259,37 @@ export async function removeMemberAction(membershipId: string): Promise<{ error?
   const session = await requireAdmin();
   const prisma = getPrisma();
 
-  const membership = await prisma.membership.findUnique({
-    where: { id: membershipId },
-    select: { orgId: true, userId: true, role: true },
-  });
-  if (!membership || membership.orgId !== session.orgId) {
-    return { error: "Membership not found" };
-  }
-  if (membership.userId === session.userId) {
-    return { error: "You cannot remove yourself" };
-  }
+  const result: AdminMutationResult = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT id FROM memberships
+      WHERE org_id = ${session.orgId}::uuid AND role = 'ADMIN'
+      FOR UPDATE
+    `;
 
-  await prisma.membership.delete({ where: { id: membershipId } });
+    const membership = await tx.membership.findUnique({
+      where: { id: membershipId },
+      select: { orgId: true, userId: true, role: true },
+    });
+    if (!membership || membership.orgId !== session.orgId) {
+      return { ok: false, error: "Membership not found" };
+    }
+    if (membership.userId === session.userId) {
+      return { ok: false, error: "You cannot remove yourself" };
+    }
+    if (membership.role === "ADMIN") {
+      const adminCount = await tx.membership.count({
+        where: { orgId: session.orgId, role: "ADMIN" },
+      });
+      if (adminCount <= 1) {
+        return { ok: false, error: "Workspace must have at least one admin" };
+      }
+    }
+
+    await tx.membership.delete({ where: { id: membershipId } });
+    return { ok: true, previousRole: membership.role, targetUserId: membership.userId };
+  });
+
+  if (!result.ok) return { error: result.error };
 
   await writeAudit({
     orgId: session.orgId,
@@ -177,7 +297,7 @@ export async function removeMemberAction(membershipId: string): Promise<{ error?
     action: "member.removed",
     targetType: "membership",
     targetId: asMembershipId(membershipId),
-    metadata: { removedUserId: membership.userId, role: membership.role },
+    metadata: { removedUserId: result.targetUserId, role: result.previousRole },
   });
 
   revalidatePath("/settings/members");
