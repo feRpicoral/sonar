@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-// ─── Research (Haiku 4.5 + Tavily) ─────────────────────────────────────────
-
 export const ResearchOutputSchema = z.object({
   segment: z.string().describe("Industry segment, e.g. 'B2B SaaS - workforce analytics'"),
   companySize: z.string().optional().describe("Headcount range, e.g. '50-200 employees'"),
@@ -14,8 +12,6 @@ export const ResearchOutputSchema = z.object({
   summary: z.string().describe("2-3 sentence overall summary of the prospect"),
 });
 export type ResearchOutput = z.infer<typeof ResearchOutputSchema>;
-
-// ─── Analysis (Sonnet 4.6) ─────────────────────────────────────────────────
 
 export const KeyQuoteSchema = z.object({
   text: z.string(),
@@ -38,8 +34,6 @@ export const AnalysisOutputSchema = z.object({
 });
 export type AnalysisOutput = z.infer<typeof AnalysisOutputSchema>;
 
-// ─── Strategy (Sonnet 4.6) ─────────────────────────────────────────────────
-
 export const StrategyOutputSchema = z.object({
   nextStep: z.enum(["follow-up-email", "demo", "proposal", "discovery-call", "nurture"]),
   urgency: z.enum(["high", "medium", "low"]),
@@ -49,8 +43,6 @@ export const StrategyOutputSchema = z.object({
   reasoning: z.string().describe("2-3 sentence justification for the next step and urgency"),
 });
 export type StrategyOutput = z.infer<typeof StrategyOutputSchema>;
-
-// ─── Writer (Sonnet 4.6) ───────────────────────────────────────────────────
 
 export const CitationSchema = z.object({
   phrase: z.string().describe("The exact phrase from the email that needs backing"),
@@ -69,8 +61,6 @@ export const WriterOutputSchema = z.object({
     .describe("Phrases in the body backed by specific transcript moments"),
 });
 export type WriterOutput = z.infer<typeof WriterOutputSchema>;
-
-// ─── Aggregate state ───────────────────────────────────────────────────────
 
 export interface AgentRunState {
   research?: ResearchOutput;

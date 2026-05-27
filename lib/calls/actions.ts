@@ -17,8 +17,6 @@ import {
 } from "@/lib/storage/audio";
 import { transcribeAudio } from "@/lib/transcription/whisper";
 
-// ─── Step 1: prepare a signed upload URL ────────────────────────────────────
-
 const prepareSchema = z.object({
   leadId: z.string().uuid(),
   mime: z.string(),
@@ -70,8 +68,6 @@ export async function prepareCallUploadAction(input: {
   return { callId: call.id, path: signed.path, token: signed.token, signedUrl: signed.signedUrl };
 }
 
-// ─── Step 2: transcribe the uploaded audio (synchronous for phase 3) ────────
-
 export type TranscribeResult = { error?: string; ok?: true };
 
 export async function transcribeCallAction(callId: string): Promise<TranscribeResult> {
@@ -83,8 +79,8 @@ export async function transcribeCallAction(callId: string): Promise<TranscribeRe
     select: { id: true, leadId: true, audioPath: true, transcriptText: true, deletedAt: true },
   });
   if (!call) return { error: "Call not found" };
-  if (call.deletedAt) return { ok: true }; // cancelled before we started - no-op
-  if (call.transcriptText) return { ok: true }; // already done - idempotent
+  if (call.deletedAt) return { ok: true };
+  if (call.transcriptText) return { ok: true };
 
   const audio = await downloadCallAudio(call.audioPath);
   // The Blob from Supabase Storage carries the contentType that was set
@@ -124,8 +120,6 @@ export async function transcribeCallAction(callId: string): Promise<TranscribeRe
   return { ok: true };
 }
 
-// ─── Step 3 (optional): cancel an in-flight transcription ────────────────────
-
 export async function cancelCallTranscriptionAction(callId: string): Promise<TranscribeResult> {
   const session = await requireSessionOrOnboard();
   const db = getDb(session.orgId);
@@ -135,7 +129,7 @@ export async function cancelCallTranscriptionAction(callId: string): Promise<Tra
     select: { id: true, leadId: true, deletedAt: true, transcriptText: true },
   });
   if (!call) return { error: "Call not found" };
-  if (call.deletedAt) return { ok: true }; // idempotent
+  if (call.deletedAt) return { ok: true };
   if (call.transcriptText) {
     return { error: "Transcript already saved - delete instead" };
   }

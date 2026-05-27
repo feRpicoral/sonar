@@ -2,7 +2,8 @@ import type { CallId, OrgId } from "@/lib/db/types";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 
 export const CALL_AUDIO_BUCKET = "call-audio";
-export const MAX_AUDIO_BYTES = 100 * 1024 * 1024; // 100 MB
+const BYTES_PER_MEGABYTE = 1024 * 1024;
+export const MAX_AUDIO_BYTES = 100 * BYTES_PER_MEGABYTE;
 
 // Mirrors what Groq's whisper endpoint accepts. AAC is intentionally absent -
 // Groq sniffs the filename extension and `.aac` is not on their allowlist.

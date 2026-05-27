@@ -2,7 +2,6 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
-    // Use the TS path aliases (`@/*`) defined in tsconfig.json
     tsconfigPaths: true,
   },
   test: {

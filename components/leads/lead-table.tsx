@@ -53,8 +53,7 @@ export function LeadTable({ leads }: { leads: LeadCardProps[] }) {
   };
   for (const lead of leads) grouped[lead.status].push(lead);
 
-  // Keep modal in sync with the latest server data when the page revalidates.
-  // We look up the selected lead by id against the fresh leads prop.
+  // Keep the modal backed by fresh server data after revalidation.
   const liveSelected = selected ? (leads.find((l) => l.id === selected.id) ?? null) : null;
 
   return (

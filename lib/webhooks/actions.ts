@@ -150,7 +150,6 @@ export async function rotateWebhookSecretAction(
   return { secret: newSecret };
 }
 
-/** Re-attempt a failed delivery with a fresh attempt counter. */
 export async function replayDeliveryAction(
   deliveryId: string,
 ): Promise<{ error?: string; ok?: true }> {

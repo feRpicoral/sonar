@@ -6,16 +6,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cancelCallTranscriptionAction } from "@/lib/calls/actions";
 
-/**
- * Cancel button shown on stuck "Transcribing…" rows in the lead detail page.
- * Soft-deletes the Call row so the orphaned entry disappears. Use inside a
- * clickable Link parent - the click handler stops propagation so the
- * navigation doesn't fire.
- */
 export function CancelTranscriptionButton({ callId }: { callId: string }) {
   const [isPending, startTransition] = useTransition();
 
   const onClick = (e: MouseEvent<HTMLButtonElement>) => {
+    // The parent row is a link; cancel should not open the transcript page.
     e.preventDefault();
     e.stopPropagation();
     startTransition(async () => {

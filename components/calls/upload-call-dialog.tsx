@@ -90,7 +90,6 @@ export function UploadCallDialog({ leadId }: { leadId: string }) {
       open={open}
       onOpenChange={(next) => {
         if (!next && stage !== "idle") {
-          // Closing via overlay/Escape during in-flight work cancels too.
           onCancel();
         }
         setOpen(next);

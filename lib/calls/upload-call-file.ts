@@ -16,17 +16,12 @@ export interface UploadCallOptions {
   onStageChange: (stage: UploadStage) => void;
   /** Fired as soon as the Call row exists, so the caller knows what to cancel. */
   onCallCreated?: (callId: string) => void;
-  /** Abort signal that races against the transcription step. */
   signal?: AbortSignal;
 }
 
 /**
- * Drives the full upload flow for a call recording: validate → prepare signed
- * URL → upload to Supabase Storage → trigger transcription. Shared between the
- * upload dialog and the lead-page drop overlay.
- *
- * Cancellation: Groq's sync Whisper endpoint has no cancel. We expose a soft
- * cancel by aborting the client-side wait — the server-side transcribe action
+ * Groq's sync Whisper endpoint has no cancel. We expose a soft
+ * cancel by aborting the client-side wait; the server-side transcribe action
  * keeps running, but its final DB write is gated on `deletedAt IS NULL`, so
  * cancelled work is discarded.
  */

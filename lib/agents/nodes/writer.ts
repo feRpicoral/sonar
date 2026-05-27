@@ -15,7 +15,6 @@ export interface WriterInput {
   analysis: AnalysisOutput | null;
   strategy: StrategyOutput;
   segments?: { start: number; end: number; text: string }[];
-  /** Optional reviewer feedback to incorporate on a regeneration. */
   feedback?: string;
 }
 

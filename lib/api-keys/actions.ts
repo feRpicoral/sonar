@@ -31,14 +31,7 @@ export async function createApiKeyAction(input: {
   if (invalidScopes.length > 0) {
     return { error: `Unknown scopes: ${invalidScopes.join(", ")}` };
   }
-  // Canonical-order, de-dup
-  const scopes = [...new Set(parsed.data.scopes)]
-    .filter(isValidScope)
-    .sort(
-      (a, b) =>
-        (VALID_SCOPES as readonly string[]).indexOf(a) -
-        (VALID_SCOPES as readonly string[]).indexOf(b),
-    );
+  const scopes = VALID_SCOPES.filter((scope) => parsed.data.scopes.includes(scope));
 
   const { plaintext, last4 } = generateApiKey();
   const hash = hashApiKey(plaintext);

@@ -190,7 +190,6 @@ export async function softDeleteLeadAction(leadId: string): Promise<{ error?: st
   const session = await requireSessionOrOnboard();
   const db = getDb(session.orgId);
 
-  // Only admin or owner can delete.
   const lead = await db.lead.findUnique({
     where: { id: leadId },
     select: { assignedToUserId: true, createdByUserId: true },

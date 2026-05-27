@@ -4,8 +4,6 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
-  // Visiting /login or /signup while authenticated lands you on the dashboard.
-  // /dashboard's own guard handles the "no org yet" case (routes to /create-org).
   const supabase = await createServerSupabase();
   const {
     data: { user },

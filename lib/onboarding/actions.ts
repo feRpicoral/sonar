@@ -40,7 +40,7 @@ export async function createOrgAction(
 
   const prisma = getPrisma();
 
-  // Ensure User mirror exists (Supabase trigger should handle this in production).
+  // Backfill the Supabase user mirror for local/dev gaps.
   await prisma.user.upsert({
     where: { id: user.id },
     create: {
