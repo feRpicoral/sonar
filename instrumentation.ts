@@ -1,8 +1,3 @@
-// Next.js instrumentation file — runs once per worker on cold start.
-// Loads runtime-specific Sentry config. If SENTRY_DSN is unset (dev / preview
-// without observability keys) the SDK initializes in a no-op mode and never
-// errors at runtime.
-
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("./sentry.server.config");

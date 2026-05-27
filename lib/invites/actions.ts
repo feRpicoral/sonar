@@ -19,8 +19,6 @@ import { createServerSupabase } from "@/lib/supabase/server";
 // result so the caller gets a friendly message.
 class AlreadyMemberError extends Error {}
 
-// ─── Create invite (admin only) ────────────────────────────────────────────
-
 const inviteSchema = z.object({
   email: z.string().email().optional(),
   role: z.enum(["ADMIN", "MEMBER"]),
@@ -69,8 +67,6 @@ export async function createInviteAction(formData: FormData): Promise<CreateInvi
   revalidatePath("/settings/members");
   return { url: `${base}/accept-invite/${token}` };
 }
-
-// ─── Accept invite (authenticated user) ────────────────────────────────────
 
 export async function acceptInviteAction(token: string): Promise<{ error?: string }> {
   const supabase = await createServerSupabase();
@@ -181,8 +177,6 @@ export async function acceptInviteAction(token: string): Promise<{ error?: strin
 
   redirect("/dashboard");
 }
-
-// ─── Member admin: change role / remove ────────────────────────────────────
 
 type AdminMutationResult =
   | { ok: false; error: string }

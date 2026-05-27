@@ -7,10 +7,6 @@ import { requireAdmin } from "@/lib/auth/session";
 
 import { appUrl, getStripe, proPriceId } from "./stripe";
 
-/**
- * Start a Stripe Checkout session for upgrading this workspace to Pro.
- * Creates or reuses the org's Stripe customer and redirects the user.
- */
 export async function startCheckoutAction(): Promise<void> {
   const session = await requireAdmin();
   const stripe = getStripe();
@@ -60,10 +56,6 @@ export async function startCheckoutAction(): Promise<void> {
   redirect(checkout.url);
 }
 
-/**
- * Open the Stripe Customer Portal for managing payment method, invoices,
- * and cancellation. Returns the URL to redirect the user to.
- */
 export async function openPortalAction(): Promise<void> {
   const session = await requireAdmin();
   const stripe = getStripe();

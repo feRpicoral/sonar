@@ -23,11 +23,6 @@ interface CallContext {
   segments: { start: number; end: number; text: string }[];
 }
 
-/**
- * Orchestrate a full agent run end-to-end. Reads the AgentRun row, executes
- * each node in sequence, writes AgentRunStep rows with status + structured
- * output, and finalizes the run with COMPLETED or FAILED.
- */
 export async function runAgent(runId: string): Promise<void> {
   const prisma = getPrisma();
 
@@ -106,7 +101,6 @@ export async function runAgent(runId: string): Promise<void> {
       }),
     );
 
-    // Materialize the writer output as an EmailDraft and pause for approval.
     await db.emailDraft.upsert({
       where: { runId },
       create: {
@@ -220,10 +214,6 @@ async function runStep<T>(
   }
 }
 
-/**
- * Re-run only the writer node against an existing run, incorporating reviewer
- * feedback. Research, analysis, and strategy are reused from the prior state.
- */
 export async function regenerateWriter(runId: string, feedback: string): Promise<void> {
   const prisma = getPrisma();
   const run = await prisma.agentRun.findUnique({

@@ -58,8 +58,6 @@ export function LeadDetailModal({
   onClose: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
-  // Optimistic status so the radio reflects the click instantly while the
-  // server action is in flight.
   const [optimisticStatus, setOptimisticStatus] = useOptimistic<Status | null, Status>(
     lead?.status ?? null,
     (_state, next) => next,

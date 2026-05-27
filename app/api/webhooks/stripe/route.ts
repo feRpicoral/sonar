@@ -4,7 +4,7 @@ import type Stripe from "stripe";
 import { writeAudit } from "@/lib/audit/log";
 import { getStripe } from "@/lib/billing/stripe";
 import { getPrisma } from "@/lib/db/client";
-import { asOrgId, asUserId } from "@/lib/db/types";
+import { asOrgId } from "@/lib/db/types";
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -201,8 +201,5 @@ function stripeUnixToDate(unix?: number): Date | null {
   return new Date(unix * 1000);
 }
 
-// Stripe needs to know not to redirect / parse this as Next.js body
+// Stripe webhook verification needs Node runtime APIs.
 export const runtime = "nodejs";
-
-// Reference the unused export to satisfy ESLint without disabling rules.
-void asUserId;

@@ -7,7 +7,6 @@ export function getAppUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 }
 
-/** Canonical base URL for the v1 REST API. */
 export function getApiBaseUrl(): string {
   return `${getAppUrl()}/api/v1`;
 }

@@ -9,11 +9,6 @@ import { Button } from "@/components/ui/button";
 import { cancelCallTranscriptionAction } from "@/lib/calls/actions";
 import { uploadCallFile, type UploadStage } from "@/lib/calls/upload-call-file";
 
-/**
- * Wraps the lead detail page so dragging an audio file anywhere on the page
- * triggers an upload + transcription. Pairs with UploadCallDialog (which
- * exposes the same flow through a button + dialog).
- */
 export function LeadDropzoneOverlay({
   leadId,
   children,
@@ -70,7 +65,6 @@ export function LeadDropzoneOverlay({
     };
     const onDragOver = (e: DragEvent) => {
       if (!hasFiles(e)) return;
-      // Preventing default tells the browser this is a valid drop target.
       e.preventDefault();
     };
     const onDrop = async (e: DragEvent) => {

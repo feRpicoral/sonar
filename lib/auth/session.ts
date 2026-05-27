@@ -89,14 +89,12 @@ export async function requireSessionOrOnboard(): Promise<Session> {
   };
 }
 
-/** Redirects to /login if no session. */
 export async function requireSession(): Promise<Session> {
   const session = await getSession();
   if (!session) redirect("/login");
   return session;
 }
 
-/** Requires session AND admin role. Members are redirected to /dashboard. */
 export async function requireAdmin(): Promise<Session> {
   const session = await requireSessionOrOnboard();
   if (session.role !== "ADMIN") redirect("/dashboard");
