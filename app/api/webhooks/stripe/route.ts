@@ -20,6 +20,17 @@ const HANDLED_EVENTS = new Set<Stripe.Event.Type>([
   "invoice.payment_failed",
 ]);
 
+type TxClient = Parameters<Parameters<ReturnType<typeof getPrisma>["$transaction"]>[0]>[0];
+
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code: unknown }).code === "P2002"
+  );
+}
+
 export async function POST(req: NextRequest) {
   const signature = req.headers.get("stripe-signature");
   if (!signature) return new NextResponse("Missing signature", { status: 400 });
@@ -35,47 +46,70 @@ export async function POST(req: NextRequest) {
     return new NextResponse(`Webhook signature verification failed: ${message}`, { status: 400 });
   }
 
-  // Idempotency - Stripe re-delivers on retry; dedupe by event.id.
   const prisma = getPrisma();
-  try {
-    await prisma.processedStripeEvent.create({
-      data: { eventId: event.id, type: event.type },
-    });
-  } catch {
-    // Already processed - return 200 to acknowledge.
+
+  // Fast-path dedupe before opening a transaction: if we already recorded the
+  // event, acknowledge without touching anything else.
+  const alreadyProcessed = await prisma.processedStripeEvent.findUnique({
+    where: { eventId: event.id },
+    select: { eventId: true },
+  });
+  if (alreadyProcessed) {
     return NextResponse.json({ received: true, duplicate: true });
+  }
+
+  // Claim the event and run its handler atomically: if the handler throws, the
+  // claim rolls back and Stripe will retry on the next delivery.
+  let auditEntry: AuditEntry | null = null;
+  try {
+    auditEntry = await prisma.$transaction(async (tx) => {
+      await tx.processedStripeEvent.create({
+        data: { eventId: event.id, type: event.type },
+      });
+      if (!HANDLED_EVENTS.has(event.type)) return null;
+      return await handleEvent(event, tx);
+    });
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      // Two deliveries raced; the other one won. Acknowledge.
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+    console.error(`Stripe webhook handler for ${event.type} failed:`, err);
+    return new NextResponse("handler_failed", { status: 500 });
+  }
+
+  if (auditEntry) {
+    await writeAudit(auditEntry);
   }
 
   if (!HANDLED_EVENTS.has(event.type)) {
     return NextResponse.json({ received: true, handled: false });
   }
-
-  try {
-    await handleEvent(event);
-    return NextResponse.json({ received: true });
-  } catch (err) {
-    console.error(`Stripe webhook handler for ${event.type} failed:`, err);
-    // Don't return 5xx - would cause Stripe to retry. Mark as handled, log.
-    return NextResponse.json({ received: true, error: "handler_failed" });
-  }
+  return NextResponse.json({ received: true });
 }
 
-async function handleEvent(event: Stripe.Event) {
-  const prisma = getPrisma();
+interface AuditEntry {
+  orgId: ReturnType<typeof asOrgId>;
+  actorUserId: null;
+  action: "subscription.changed";
+  targetType: "subscription";
+  metadata: Record<string, unknown>;
+}
 
+async function handleEvent(event: Stripe.Event, tx: TxClient): Promise<AuditEntry | null> {
   switch (event.type) {
     case "customer.subscription.created":
     case "customer.subscription.updated":
     case "customer.subscription.deleted": {
       const sub = event.data.object;
       const orgId = (sub.metadata?.orgId as string | undefined) ?? null;
-      if (!orgId) return;
+      if (!orgId) return null;
 
       const isActive =
         sub.status === "active" || sub.status === "trialing" || sub.status === "past_due";
       const plan = isActive && event.type !== "customer.subscription.deleted" ? "PRO" : "FREE";
 
-      await prisma.subscription.upsert({
+      await tx.subscription.upsert({
         where: { orgId },
         create: {
           orgId,
@@ -98,14 +132,13 @@ async function handleEvent(event: Stripe.Event) {
         },
       });
 
-      await writeAudit({
+      return {
         orgId: asOrgId(orgId),
         actorUserId: null,
         action: "subscription.changed",
         targetType: "subscription",
         metadata: { stripeStatus: sub.status, plan, eventType: event.type },
-      });
-      return;
+      };
     }
     case "invoice.payment_succeeded":
     case "invoice.payment_failed": {
@@ -115,8 +148,8 @@ async function handleEvent(event: Stripe.Event) {
         (invoice as unknown as { subscription_details?: { metadata?: { orgId?: string } } })
           .subscription_details?.metadata?.orgId ??
         null;
-      if (!orgId) return;
-      await writeAudit({
+      if (!orgId) return null;
+      return {
         orgId: asOrgId(orgId),
         actorUserId: null,
         action: "subscription.changed",
@@ -126,9 +159,10 @@ async function handleEvent(event: Stripe.Event) {
           amount: invoice.amount_paid,
           currency: invoice.currency,
         },
-      });
-      return;
+      };
     }
+    default:
+      return null;
   }
 }
 
