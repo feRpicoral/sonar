@@ -28,7 +28,7 @@ The reviewer sees a split view with the email on the left and the transcript on 
 - Each step writes an `AgentRunStep` row. The run pauses at `AWAITING_APPROVAL` after the writer step so a human can review.
 - Anthropic prompt caching is enabled on system messages. On repeat runs against the same workspace this cuts input tokens by roughly 70%.
 - The writer step can be regenerated with reviewer feedback without re-running the upstream nodes.
-- Background execution uses Next.js 16's `after()` route handler with `maxDuration = 300`.
+- Background execution uses Next.js 16's `after()` route handler. The route's `maxDuration` is `60` to fit Vercel Hobby; bump it to `300` here and in the Vercel project settings on Pro.
 
 ### Audio processing
 
@@ -53,7 +53,7 @@ Plus the rest of the B2B surface:
 - Workspace switcher and invite-by-link onboarding.
 - Stripe billing (Checkout, Customer Portal, idempotent webhook handler).
 - Outbound webhooks with HMAC-SHA256 signing, a 5-minute timestamp tolerance window, delivery log, and manual replay.
-- Scoped API keys (5 scopes, last-used tracking, revocable) protecting the `/api/v1/*` endpoints.
+- Scoped API keys (4 scopes, last-used tracking, revocable) protecting the `/api/v1/*` endpoints.
 - Audit log written on every mutating action, filterable by category in the UI.
 - Soft delete with a `/trash` restore page.
 
