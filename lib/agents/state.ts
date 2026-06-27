@@ -1,8 +1,23 @@
 import { z } from "zod";
 
+export const ResearchSourceSchema = z.object({
+  name: z.string().describe("Source name, e.g. 'Crunchbase' or 'acme.com'"),
+  url: z.string().describe("Source URL"),
+});
+
 export const ResearchOutputSchema = z.object({
   segment: z.string().describe("Industry segment, e.g. 'B2B SaaS - workforce analytics'"),
   companySize: z.string().optional().describe("Headcount range, e.g. '50-200 employees'"),
+  industry: z.string().optional().describe("Primary industry, e.g. 'Healthcare'"),
+  fundingStage: z.string().optional().describe("Funding stage, e.g. 'Series B'"),
+  employeeCount: z.string().optional().describe("Approx employee count, e.g. '320 employees'"),
+  location: z.string().optional().describe("HQ location, e.g. 'Austin, TX'"),
+  amountRaised: z.string().optional().describe("Total raised, e.g. '$48M raised'"),
+  website: z.string().optional().describe("Company website URL"),
+  sources: z
+    .array(ResearchSourceSchema)
+    .optional()
+    .describe("Sources used for the research, with name and URL"),
   signals: z
     .array(z.string())
     .describe("Recent newsworthy signals - funding, hiring, product launches, etc."),
@@ -30,6 +45,12 @@ export const AnalysisOutputSchema = z.object({
   objections: z.array(z.string()).describe("Objections raised by the prospect"),
   actionItems: z.array(z.string()).describe("Specific next steps agreed upon"),
   sentiment: z.enum(["positive", "neutral", "negative"]),
+  sentimentConfidence: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe("Confidence in the sentiment classification, 0-1"),
   keyQuotes: z.array(KeyQuoteSchema).describe("Important verbatim quotes with segment index"),
 });
 export type AnalysisOutput = z.infer<typeof AnalysisOutputSchema>;

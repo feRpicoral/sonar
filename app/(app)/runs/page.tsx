@@ -1,25 +1,24 @@
 import { formatDistanceToNow } from "date-fns";
-import { Activity, ArrowRight } from "lucide-react";
+import { Activity, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { StatusPill } from "@/components/ui/status-pill";
 import { requireSessionOrOnboard } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/with-org";
+import { runStatusMeta } from "@/lib/status";
 
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: "Queued",
-  RUNNING: "Running",
-  AWAITING_APPROVAL: "Awaiting approval",
-  COMPLETED: "Completed",
-  FAILED: "Failed",
-  CANCELLED: "Cancelled",
-};
+const AVATAR_COLORS = ["violet", "emerald", "amber", "solid"] as const;
 
-function variant(status: string): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "COMPLETED") return "default";
-  if (status === "FAILED") return "destructive";
-  if (status === "AWAITING_APPROVAL") return "outline";
-  return "secondary";
+function initials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((s) => s.charAt(0).toUpperCase())
+      .join("") || "?"
+  );
 }
 
 export default async function RunsPage() {
@@ -33,60 +32,64 @@ export default async function RunsPage() {
       id: true,
       status: true,
       startedAt: true,
-      completedAt: true,
       lead: { select: { id: true, name: true, companyName: true } },
     },
   });
 
   return (
-    <div className="px-8 py-10">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold tracking-tight">Runs</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            {runs.length} {runs.length === 1 ? "run" : "runs"}
-          </p>
-        </header>
+    <div className="flex min-h-full flex-col">
+      <header className="bg-background sticky top-0 z-10 flex h-14 items-center gap-3 border-b px-6">
+        <h1 className="text-[15px] font-semibold">Runs</h1>
+        <span className="text-muted-foreground font-mono text-xs">{runs.length}</span>
+      </header>
 
-        {runs.length === 0 ? (
-          <div className="bg-card border-border grid place-items-center rounded-lg border border-dashed py-24">
-            <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-              <div className="bg-muted flex h-12 w-12 items-center justify-center rounded-full">
-                <Activity className="text-muted-foreground h-5 w-5" />
-              </div>
-              <p className="text-muted-foreground text-sm">
-                No agent runs yet. Open a lead with an attached call and click{" "}
-                <strong>Generate follow-up</strong> to start one.
-              </p>
-            </div>
+      {runs.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center px-6 py-16">
+          <div className="max-w-[340px] text-center">
+            <span className="bg-muted border-border text-muted-foreground mb-3.5 inline-flex size-[46px] items-center justify-center rounded-xl border">
+              <Activity className="size-[22px]" />
+            </span>
+            <p className="text-[15px] font-semibold">No agent runs yet</p>
+            <p className="text-muted-foreground mt-1.5 text-[13px] leading-relaxed">
+              Open a lead with an attached call and click Generate follow-up to start one.
+            </p>
           </div>
-        ) : (
-          <ul className="bg-card border-border overflow-hidden rounded-lg border">
-            {runs.map((run) => (
-              <li key={run.id}>
-                <Link
-                  href={`/runs/${run.id}`}
-                  className="hover:bg-muted/30 border-border flex items-center justify-between border-b px-4 py-3 transition-colors last:border-b-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{run.lead.name}</p>
-                    <p className="text-muted-foreground text-xs">
-                      {run.lead.companyName ? `${run.lead.companyName}, ` : ""}
-                      started {formatDistanceToNow(run.startedAt, { addSuffix: true })}
+        </div>
+      ) : (
+        <div className="mx-auto w-full max-w-4xl px-6 py-7">
+          <div className="bg-card border-border shadow-panel overflow-hidden rounded-xl border">
+            {runs.map((run, i) => (
+              <Link
+                key={run.id}
+                href={`/runs/${run.id}`}
+                className={
+                  "hover:bg-muted/40 flex items-center gap-[11px] px-[18px] py-3 transition-colors" +
+                  (i > 0 ? " border-border-2 border-t" : "")
+                }
+              >
+                <Avatar size="sm">
+                  <AvatarFallback color={AVATAR_COLORS[i % AVATAR_COLORS.length]}>
+                    {initials(run.lead.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-[550]">{run.lead.name}</p>
+                  {run.lead.companyName && (
+                    <p className="text-muted-foreground truncate text-[11.5px]">
+                      {run.lead.companyName}
                     </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={variant(run.status)} className="font-mono text-[10px]">
-                      {STATUS_LABELS[run.status] ?? run.status.toLowerCase()}
-                    </Badge>
-                    <ArrowRight className="text-muted-foreground h-3.5 w-3.5" />
-                  </div>
-                </Link>
-              </li>
+                  )}
+                </div>
+                <span className="text-muted-foreground hidden text-[11.5px] whitespace-nowrap sm:inline">
+                  {formatDistanceToNow(run.startedAt, { addSuffix: true })}
+                </span>
+                <StatusPill descriptor={runStatusMeta[run.status]} />
+                <ChevronRight className="text-muted-foreground size-3.5 shrink-0" />
+              </Link>
             ))}
-          </ul>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
