@@ -17,18 +17,19 @@ const NAV = [
 export function SettingsNav() {
   const pathname = usePathname();
   return (
-    <nav className="space-y-0.5">
+    <nav className="border-border flex items-center gap-6 overflow-x-auto border-b px-6">
       {NAV.map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (
           <Link
             key={item.href}
             href={item.href}
+            aria-current={active ? "page" : undefined}
             className={cn(
-              "block rounded-md px-2.5 py-1.5 text-sm transition-colors",
+              "-mb-px shrink-0 border-b-2 py-2.5 text-[13.5px] font-medium whitespace-nowrap transition-colors",
               active
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                ? "border-primary text-foreground"
+                : "text-muted-foreground hover:text-foreground border-transparent",
             )}
           >
             {item.label}
