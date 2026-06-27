@@ -19,13 +19,10 @@ function Segmented({ className, ...props }: React.ComponentProps<"div">) {
 function SegmentedItem({
   className,
   active = false,
-  count,
   asChild = false,
-  children,
   ...props
 }: React.ComponentProps<"button"> & {
   active?: boolean;
-  count?: React.ReactNode;
   asChild?: boolean;
 }) {
   const Comp = asChild ? Slot.Root : "button";
@@ -42,17 +39,12 @@ function SegmentedItem({
         className,
       )}
       {...props}
-    >
-      {children}
-      {count != null && (
-        <span
-          className={cn("font-mono text-[11px]", active ? "text-fg-3" : "text-muted-foreground")}
-        >
-          {count}
-        </span>
-      )}
-    </Comp>
+    />
   );
 }
 
-export { Segmented, SegmentedItem };
+function SegmentedCount({ children }: { children: React.ReactNode }) {
+  return <span className="text-muted-foreground font-mono text-[11px]">{children}</span>;
+}
+
+export { Segmented, SegmentedCount, SegmentedItem };
