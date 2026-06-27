@@ -35,15 +35,27 @@ function AvatarImage({ className, ...props }: React.ComponentProps<typeof Avatar
   );
 }
 
+const avatarFallbackColors = {
+  violet: "bg-violet-bg text-violet-fg",
+  emerald: "bg-emerald-bg text-emerald-fg",
+  amber: "bg-amber-bg text-amber-fg",
+  solid: "bg-primary text-primary-foreground",
+  muted: "bg-muted text-muted-foreground",
+} as const;
+
 function AvatarFallback({
   className,
+  color = "violet",
   ...props
-}: React.ComponentProps<typeof AvatarPrimitive.Fallback>) {
+}: React.ComponentProps<typeof AvatarPrimitive.Fallback> & {
+  color?: keyof typeof avatarFallbackColors;
+}) {
   return (
     <AvatarPrimitive.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        "bg-muted text-muted-foreground flex size-full items-center justify-center rounded-full text-sm group-data-[size=sm]/avatar:text-xs",
+        "flex size-full items-center justify-center rounded-full text-sm font-semibold group-data-[size=sm]/avatar:text-xs",
+        avatarFallbackColors[color],
         className,
       )}
       {...props}
