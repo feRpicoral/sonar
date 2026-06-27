@@ -1,12 +1,24 @@
 "use client";
 
-import { ArrowLeft, Edit2, Pencil, Send, Sparkles, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Download,
+  Pencil,
+  Send,
+  Sparkles,
+  X,
+} from "lucide-react";
 import Link from "next/link";
-import { type RefCallback, useEffect, useRef, useState, useTransition } from "react";
+import { type RefCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
+import { CiteChip, CitedBadge } from "@/components/ui/cite-chip";
 import {
   Dialog,
   DialogContent,
@@ -17,11 +29,14 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { StatusPill } from "@/components/ui/status-pill";
 import {
   approveAndSendEmailAction,
   regenerateEmailAction,
   updateEmailDraftAction,
 } from "@/lib/email/actions";
+import { emailDeliveryStatusMeta, emailDraftStatusMeta } from "@/lib/status";
+import { speakerLabel, type TranscriptSegment } from "@/lib/transcription/speakers";
 import { formatTimestamp } from "@/lib/transcription/whisper";
 import { cn } from "@/lib/utils";
 
@@ -30,43 +45,75 @@ export interface Citation {
   transcriptSegmentIndex: number;
 }
 
-export interface Segment {
-  start: number;
-  end: number;
-  text: string;
-}
-
 export interface EmailSplitViewProps {
   draftId: string;
   subject: string;
   body: string;
   citations: Citation[];
-  segments: Segment[];
+  segments: TranscriptSegment[];
   status: string;
   leadId: string;
   leadName: string;
   recipient: string | null;
+  failureReason: string | null;
+  delivery: {
+    status: string;
+    recipientEmail: string | null;
+    failureReason: string | null;
+    failureCode: string | null;
+  } | null;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Draft",
-  APPROVED: "Approved",
-  SENT: "Sent",
-  FAILED: "Failed",
-};
+interface ResolvedCitation extends Citation {
+  number: number;
+  matches: number[];
+}
 
 export function EmailSplitView(props: EmailSplitViewProps) {
-  const { draftId, subject, body, citations, segments, status, leadId, leadName, recipient } =
-    props;
+  const {
+    draftId,
+    subject,
+    body,
+    citations,
+    segments,
+    status,
+    leadId,
+    leadName,
+    recipient,
+    failureReason,
+    delivery,
+  } = props;
 
   const sent = status === "SENT";
+  const failed = status === "FAILED";
   const [isEditing, setIsEditing] = useState(false);
   const [editedSubject, setEditedSubject] = useState(subject);
   const [editedBody, setEditedBody] = useState(body);
-  const [highlight, setHighlight] = useState<number | null>(null);
+  const [active, setActive] = useState<{ ci: number; pos: number } | null>(null);
   const [regenOpen, setRegenOpen] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  const resolved = useMemo<ResolvedCitation[]>(
+    () =>
+      citations.map((c, i) => {
+        const matches = segments
+          .map((s, idx) => (s.text.toLowerCase().includes(c.phrase.toLowerCase()) ? idx : -1))
+          .filter((idx) => idx !== -1);
+        if (!matches.includes(c.transcriptSegmentIndex) && segments[c.transcriptSegmentIndex]) {
+          matches.unshift(c.transcriptSegmentIndex);
+        }
+        return {
+          ...c,
+          number: i + 1,
+          matches: matches.length ? matches : [c.transcriptSegmentIndex],
+        };
+      }),
+    [citations, segments],
+  );
+
+  const activeCitation = active ? resolved[active.ci] : null;
+  const activeSegment = active && activeCitation ? activeCitation.matches[active.pos] : null;
 
   const segmentRefs = useRef<Map<number, HTMLLIElement>>(new Map());
   const setSegmentRef =
@@ -76,18 +123,18 @@ export function EmailSplitView(props: EmailSplitViewProps) {
       else segmentRefs.current.delete(i);
     };
 
-  // Scroll the highlighted segment into view as a side effect. The state
-  // setter goes straight to renderBodyWithCitations so the rendering path
-  // doesn't read any refs during render.
   useEffect(() => {
-    if (highlight === null) return;
-    const el = segmentRefs.current.get(highlight);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [highlight]);
+    if (activeSegment == null) return;
+    segmentRefs.current.get(activeSegment)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [activeSegment]);
 
-  const annotatedBody = renderBodyWithCitations(body, citations, setHighlight);
+  const citedSegments = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const c of resolved) for (const m of c.matches) if (!map.has(m)) map.set(m, c.number);
+    return map;
+  }, [resolved]);
 
-  const onSaveEdit = () => {
+  const onSaveEdit = () =>
     startTransition(async () => {
       const result = await updateEmailDraftAction(draftId, editedSubject, editedBody);
       if (result.error) toast.error(result.error);
@@ -96,21 +143,13 @@ export function EmailSplitView(props: EmailSplitViewProps) {
         setIsEditing(false);
       }
     });
-  };
 
-  const onCancelEdit = () => {
-    setEditedSubject(subject);
-    setEditedBody(body);
-    setIsEditing(false);
-  };
-
-  const onApprove = () => {
+  const onApprove = () =>
     startTransition(async () => {
       const result = await approveAndSendEmailAction(draftId);
       if (result.error) toast.error(result.error);
       else toast.success("Email sent");
     });
-  };
 
   const onRegenerate = () => {
     if (!feedback.trim()) {
@@ -128,44 +167,65 @@ export function EmailSplitView(props: EmailSplitViewProps) {
     });
   };
 
+  const transcriptText = () =>
+    segments
+      .map(
+        (s) =>
+          `[${formatTimestamp(s.start)}] ${speakerLabel(s.speaker, leadName)}: ${s.text.trim()}`,
+      )
+      .join("\n");
+
+  const copyTranscript = () => {
+    navigator.clipboard.writeText(transcriptText()).then(
+      () => toast.success("Transcript copied"),
+      () => toast.error("Copy failed"),
+    );
+  };
+
+  const downloadTranscript = () => {
+    const blob = new Blob([transcriptText()], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `transcript-${leadName.replace(/\s+/g, "-").toLowerCase()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="flex min-h-screen flex-col lg:h-screen">
-      <header className="border-border flex flex-col gap-3 border-b px-4 py-4 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-1">
+    <div className="flex min-h-full flex-col lg:h-screen">
+      <header className="bg-background flex flex-col gap-3 border-b px-6 py-3 lg:h-14 lg:flex-row lg:items-center lg:justify-between lg:py-0">
+        <div className="flex items-center gap-3">
           <Link
             href={`/leads/${leadId}`}
-            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs transition-colors"
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-[13px] transition-colors"
           >
-            <ArrowLeft className="h-3 w-3" />
-            Back to {leadName}
+            <ArrowLeft className="size-3.5" /> {leadName}
           </Link>
-          <h1 className="text-xl font-semibold tracking-tight">Approve email</h1>
+          <span className="text-sm font-semibold">Approve email</span>
         </div>
         <div className="flex items-center gap-2">
-          <Badge
-            variant={sent ? "default" : status === "FAILED" ? "destructive" : "secondary"}
-            className="font-mono text-[10px]"
-          >
-            {STATUS_LABELS[status] ?? status.toLowerCase()}
-          </Badge>
+          <StatusPill
+            descriptor={emailDraftStatusMeta[status as keyof typeof emailDraftStatusMeta]}
+          />
           {!sent && !isEditing && (
             <>
               <Dialog open={regenOpen} onOpenChange={setRegenOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5" disabled={isPending}>
-                    <Sparkles className="h-3.5 w-3.5" /> Regenerate
+                  <Button variant="outline" size="sm" disabled={isPending}>
+                    <Sparkles /> Regenerate
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
                     <DialogTitle>Regenerate with feedback</DialogTitle>
                     <DialogDescription>
-                      The writer agent will re-draft using research / analysis / strategy from the
-                      prior run, plus your feedback.
+                      The writer re-drafts using research / analysis / strategy from the prior run,
+                      plus your feedback.
                     </DialogDescription>
                   </DialogHeader>
                   <textarea
-                    className="border-input bg-background placeholder:text-muted-foreground focus-visible:ring-ring min-h-[120px] w-full rounded-md border px-3 py-2 text-sm shadow-xs focus-visible:ring-1 focus-visible:outline-none"
+                    className="border-input bg-card placeholder:text-muted-foreground focus-visible:ring-ring/50 focus-visible:border-ring min-h-[120px] w-full rounded-lg border px-3 py-2 text-sm outline-none focus-visible:ring-[3px]"
                     placeholder="e.g. 'Too formal. Make the opener about their hiring spree.'"
                     value={feedback}
                     onChange={(e) => setFeedback(e.target.value)}
@@ -181,8 +241,8 @@ export function EmailSplitView(props: EmailSplitViewProps) {
                     >
                       Cancel
                     </Button>
-                    <Button onClick={onRegenerate} disabled={isPending} className="gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5" />
+                    <Button onClick={onRegenerate} disabled={isPending}>
+                      <Sparkles />
                       {isPending ? "Generating…" : "Regenerate"}
                     </Button>
                   </DialogFooter>
@@ -191,21 +251,19 @@ export function EmailSplitView(props: EmailSplitViewProps) {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5"
                 onClick={() => setIsEditing(true)}
                 disabled={isPending}
               >
-                <Pencil className="h-3.5 w-3.5" /> Edit
+                <Pencil /> Edit
               </Button>
               <Button
                 size="sm"
-                className="gap-1.5"
                 onClick={onApprove}
                 disabled={isPending || !recipient}
                 title={!recipient ? "Add an email to the lead first" : undefined}
               >
-                <Send className="h-3.5 w-3.5" />
-                {isPending ? "Sending…" : "Approve & send"}
+                <Send />
+                {isPending ? "Sending…" : failed ? "Retry send" : "Approve & send"}
               </Button>
             </>
           )}
@@ -214,14 +272,17 @@ export function EmailSplitView(props: EmailSplitViewProps) {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5"
-                onClick={onCancelEdit}
+                onClick={() => {
+                  setEditedSubject(subject);
+                  setEditedBody(body);
+                  setIsEditing(false);
+                }}
                 disabled={isPending}
               >
-                <X className="h-3.5 w-3.5" /> Cancel
+                <X /> Cancel
               </Button>
-              <Button size="sm" onClick={onSaveEdit} disabled={isPending} className="gap-1.5">
-                <Edit2 className="h-3.5 w-3.5" />
+              <Button size="sm" onClick={onSaveEdit} disabled={isPending}>
+                <Check />
                 {isPending ? "Saving…" : "Save"}
               </Button>
             </>
@@ -230,16 +291,18 @@ export function EmailSplitView(props: EmailSplitViewProps) {
       </header>
 
       <div className="grid flex-1 grid-cols-1 lg:grid-cols-2 lg:overflow-hidden">
-        <section className="border-border border-b px-4 py-6 sm:px-8 lg:overflow-y-auto lg:border-r lg:border-b-0">
+        <section className="border-b px-6 py-6 lg:overflow-y-auto lg:border-r lg:border-b-0">
           <div className="mx-auto max-w-2xl space-y-4">
             <div className="text-muted-foreground space-y-1 text-xs">
               <div>
                 <span className="text-muted-foreground/70 font-mono uppercase">To</span>{" "}
                 {recipient ? (
-                  <span className="text-foreground">{recipient}</span>
+                  <span className="text-foreground">
+                    {leadName} · {recipient}
+                  </span>
                 ) : (
-                  <Link href={`/leads/${leadId}`} className="text-destructive hover:underline">
-                    No email on file - add one to the lead
+                  <Link href={`/leads/${leadId}`} className="text-rose-fg hover:underline">
+                    No email on file — add one to the lead
                   </Link>
                 )}
               </div>
@@ -248,6 +311,15 @@ export function EmailSplitView(props: EmailSplitViewProps) {
                 <span>onboarding@resend.dev</span>
               </div>
             </div>
+
+            {sent && delivery && <DeliveryBanner delivery={delivery} />}
+            {failed && (failureReason || delivery?.failureReason) && (
+              <Callout variant="warning">
+                <p className="font-semibold">Send failed</p>
+                <p className="mt-0.5">{delivery?.failureReason ?? failureReason}</p>
+              </Callout>
+            )}
+
             {isEditing ? (
               <>
                 <Input
@@ -257,7 +329,7 @@ export function EmailSplitView(props: EmailSplitViewProps) {
                   className="text-base font-medium"
                 />
                 <textarea
-                  className="border-input bg-background placeholder:text-muted-foreground focus-visible:ring-ring min-h-[320px] w-full rounded-md border px-3 py-3 text-sm leading-relaxed shadow-xs focus-visible:ring-1 focus-visible:outline-none"
+                  className="border-input bg-card focus-visible:ring-ring/50 focus-visible:border-ring min-h-[320px] w-full rounded-lg border px-3 py-3 text-sm leading-relaxed outline-none focus-visible:ring-[3px]"
                   value={editedBody}
                   onChange={(e) => setEditedBody(e.target.value)}
                 />
@@ -265,43 +337,131 @@ export function EmailSplitView(props: EmailSplitViewProps) {
             ) : (
               <>
                 <h2 className="text-lg font-semibold">{subject}</h2>
-                <div className="text-sm leading-relaxed whitespace-pre-wrap">{annotatedBody}</div>
+                <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                  <Body
+                    body={body}
+                    citations={resolved}
+                    activeCi={active?.ci ?? null}
+                    onActivate={(ci) => setActive({ ci, pos: 0 })}
+                  />
+                </div>
               </>
             )}
           </div>
         </section>
 
-        <section className="px-4 py-6 sm:px-8 lg:overflow-y-auto">
+        <section className="px-6 py-6 lg:overflow-y-auto">
           <div className="mx-auto max-w-2xl">
-            <header className="mb-4 flex items-center justify-between">
-              <h2 className="text-sm font-medium">Source transcript</h2>
-              <span className="text-muted-foreground font-mono text-[10px]">
-                {segments.length} {segments.length === 1 ? "segment" : "segments"}
-              </span>
+            <header className="mb-4 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold">Source transcript</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground font-mono text-[10px]">
+                  {segments.length} {segments.length === 1 ? "segment" : "segments"}
+                </span>
+                {segments.length > 0 && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={copyTranscript}
+                      title="Copy transcript"
+                    >
+                      <Copy />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={downloadTranscript}
+                      title="Download transcript"
+                    >
+                      <Download />
+                    </Button>
+                  </>
+                )}
+              </div>
             </header>
+
+            {activeCitation && activeCitation.matches.length > 1 && (
+              <div className="bg-muted border-border mb-3 flex items-center justify-between rounded-lg border px-3 py-1.5 text-xs">
+                <span>
+                  Citation {activeCitation.number} · match {active!.pos + 1} of{" "}
+                  {activeCitation.matches.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() =>
+                      setActive((a) =>
+                        a
+                          ? {
+                              ci: a.ci,
+                              pos:
+                                (a.pos - 1 + activeCitation.matches.length) %
+                                activeCitation.matches.length,
+                            }
+                          : a,
+                      )
+                    }
+                  >
+                    <ChevronLeft />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() =>
+                      setActive((a) =>
+                        a ? { ci: a.ci, pos: (a.pos + 1) % activeCitation.matches.length } : a,
+                      )
+                    }
+                  >
+                    <ChevronRight />
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {segments.length === 0 ? (
               <p className="text-muted-foreground bg-muted/30 border-border rounded-lg border border-dashed px-4 py-12 text-center text-sm">
                 No call attached to this run.
               </p>
             ) : (
               <ul className="space-y-0.5">
-                {segments.map((seg, i) => (
-                  <li
-                    key={i}
-                    ref={setSegmentRef(i)}
-                    className={cn(
-                      "flex gap-3 rounded-md px-3 py-2 transition-colors",
-                      highlight === i
-                        ? "bg-primary/10 ring-primary/30 ring-1"
-                        : "hover:bg-muted/30",
-                    )}
-                  >
-                    <span className="text-muted-foreground w-12 shrink-0 font-mono text-xs tabular-nums">
-                      {formatTimestamp(seg.start)}
-                    </span>
-                    <p className="text-sm leading-relaxed">{seg.text.trim()}</p>
-                  </li>
-                ))}
+                {segments.map((seg, i) => {
+                  const citedNumber = citedSegments.get(i);
+                  return (
+                    <li
+                      key={i}
+                      ref={setSegmentRef(i)}
+                      className={cn(
+                        "flex gap-3 rounded-md px-3 py-2 transition-colors",
+                        activeSegment === i
+                          ? "bg-primary/10 ring-primary/30 ring-1"
+                          : "hover:bg-muted/40",
+                      )}
+                    >
+                      <span className="text-muted-foreground w-12 shrink-0 pt-0.5 font-mono text-xs tabular-nums">
+                        {formatTimestamp(seg.start)}
+                      </span>
+                      <p className="min-w-0 text-sm leading-relaxed">
+                        <span
+                          className={cn(
+                            "mr-2 text-[11px] font-semibold",
+                            seg.speaker === "rep" ? "text-violet-fg" : "text-emerald-fg",
+                          )}
+                        >
+                          {speakerLabel(seg.speaker, leadName)}
+                        </span>
+                        {seg.text.trim()}
+                        {citedNumber != null && (
+                          <span className="ml-1.5 align-middle">
+                            <CitedBadge active={activeSegment === i} count={citedNumber} />
+                          </span>
+                        )}
+                      </p>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -311,38 +471,62 @@ export function EmailSplitView(props: EmailSplitViewProps) {
   );
 }
 
-function renderBodyWithCitations(
-  body: string,
-  citations: Citation[],
-  onHighlight: (i: number | null) => void,
-): React.ReactNode {
+function DeliveryBanner({ delivery }: { delivery: NonNullable<EmailSplitViewProps["delivery"]> }) {
+  const descriptor =
+    emailDeliveryStatusMeta[delivery.status as keyof typeof emailDeliveryStatusMeta];
+  return (
+    <div className="border-border bg-card flex items-center gap-2.5 rounded-lg border px-3 py-2">
+      {descriptor && <StatusPill descriptor={descriptor} />}
+      <span className="text-muted-foreground text-[12.5px]">
+        {delivery.recipientEmail ? `Delivered to ${delivery.recipientEmail}` : "Delivery recorded"}
+      </span>
+    </div>
+  );
+}
+
+function Body({
+  body,
+  citations,
+  activeCi,
+  onActivate,
+}: {
+  body: string;
+  citations: ResolvedCitation[];
+  activeCi: number | null;
+  onActivate: (ci: number) => void;
+}) {
   if (citations.length === 0) return body;
 
-  // Build non-overlapping ranges by first match for each citation.
-  const ranges: Array<{ start: number; end: number; segIdx: number }> = [];
-  for (const c of citations) {
-    const start = body.indexOf(c.phrase);
-    if (start === -1) continue;
-    // Skip if it overlaps an existing range (same phrase, etc.).
-    if (ranges.some((r) => start < r.end && start + c.phrase.length > r.start)) continue;
-    ranges.push({ start, end: start + c.phrase.length, segIdx: c.transcriptSegmentIndex });
-  }
+  const ranges: Array<{ start: number; end: number; ci: number }> = [];
+  citations.forEach((c, ci) => {
+    const start = body.toLowerCase().indexOf(c.phrase.toLowerCase());
+    if (start === -1) return;
+    if (ranges.some((r) => start < r.end && start + c.phrase.length > r.start)) return;
+    ranges.push({ start, end: start + c.phrase.length, ci });
+  });
   ranges.sort((a, b) => a.start - b.start);
 
   const parts: React.ReactNode[] = [];
   let cursor = 0;
   ranges.forEach((r, i) => {
     if (r.start > cursor) parts.push(body.slice(cursor, r.start));
+    const cite = citations[r.ci]!;
     parts.push(
-      <mark
-        key={`c-${i}`}
-        className="bg-primary/10 hover:bg-primary/20 -mx-0.5 cursor-pointer rounded-sm px-0.5 transition-colors"
-        onMouseEnter={() => onHighlight(r.segIdx)}
-        onMouseLeave={() => onHighlight(null)}
-        onClick={() => onHighlight(r.segIdx)}
-      >
-        {body.slice(r.start, r.end)}
-      </mark>,
+      <span key={`c-${i}`} className="whitespace-normal">
+        <mark
+          className={cn(
+            "-mx-0.5 rounded-sm px-0.5",
+            activeCi === r.ci ? "bg-primary/20" : "bg-primary/10",
+          )}
+        >
+          {body.slice(r.start, r.end)}
+        </mark>
+        <span className="ml-0.5 align-middle">
+          <CiteChip active={activeCi === r.ci} onClick={() => onActivate(r.ci)}>
+            {cite.number}
+          </CiteChip>
+        </span>
+      </span>,
     );
     cursor = r.end;
   });

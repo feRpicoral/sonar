@@ -51,6 +51,7 @@ export async function approveAndSendEmailAction(
     where: { id: draftId, status: { in: ["DRAFT", "FAILED"] } },
     data: {
       status: "APPROVED",
+      failureReason: null,
       approvedAt: new Date(),
       approvedByUserId: session.userId,
     },
@@ -97,6 +98,7 @@ export async function approveAndSendEmailAction(
         orgId: session.orgId,
         draftId: draft.id,
         resendMessageId: result.messageId,
+        recipientEmail: recipient,
         status: "SENT",
         sentAt: new Date(),
       },
@@ -124,7 +126,7 @@ export async function approveAndSendEmailAction(
     const message = err instanceof Error ? err.message : String(err);
     await db.emailDraft.update({
       where: { id: draftId },
-      data: { status: "FAILED" },
+      data: { status: "FAILED", failureReason: message },
     });
     return { error: message };
   }
