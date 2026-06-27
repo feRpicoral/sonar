@@ -155,6 +155,48 @@ export async function updateLeadEmailAction(
   return {};
 }
 
+const updateLeadSchema = z.object({
+  name: z.string().min(1, "Name required").max(120),
+  companyName: z.union([z.string().max(120), z.literal("")]).optional(),
+  companyWebsite: z.union([z.string().url("Invalid URL"), z.literal("")]).optional(),
+});
+
+export async function updateLeadAction(
+  leadId: string,
+  input: { name: string; companyName?: string; companyWebsite?: string },
+): Promise<{ error?: string }> {
+  const session = await requireSessionOrOnboard();
+  const db = getDb(session.orgId);
+
+  const parsed = updateLeadSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const existing = await db.lead.findUnique({ where: { id: leadId }, select: { id: true } });
+  if (!existing) return { error: "Lead not found" };
+
+  await db.lead.update({
+    where: { id: leadId },
+    data: {
+      name: parsed.data.name,
+      companyName: parsed.data.companyName || null,
+      companyWebsite: parsed.data.companyWebsite || null,
+    },
+  });
+
+  await writeAudit({
+    orgId: session.orgId,
+    actorUserId: session.userId,
+    action: "lead.updated",
+    targetType: "lead",
+    targetId: asLeadId(leadId),
+    metadata: { fields: ["name", "companyName", "companyWebsite"] },
+  });
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${leadId}`);
+  return {};
+}
+
 export async function assignLeadAction(
   leadId: string,
   userId: string | null,

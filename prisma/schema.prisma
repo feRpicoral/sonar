@@ -159,17 +159,26 @@ model Lead {
   @@map("leads")
 }
 
+enum TranscriptionStatus {
+  QUEUED
+  TRANSCRIBING
+  DONE
+  NO_SPEECH
+  FAILED
+}
+
 model Call {
-  id              String    @id @default(uuid()) @db.Uuid
-  orgId           String    @map("org_id") @db.Uuid
-  leadId          String    @map("lead_id") @db.Uuid
-  audioPath       String    @map("audio_path")
-  durationSec     Int?      @map("duration_sec")
-  transcriptText  String?   @map("transcript_text")
-  segments        Json?
-  createdByUserId String    @map("created_by_user_id") @db.Uuid
-  createdAt       DateTime  @default(now()) @map("created_at")
-  deletedAt       DateTime? @map("deleted_at")
+  id                  String              @id @default(uuid()) @db.Uuid
+  orgId               String              @map("org_id") @db.Uuid
+  leadId              String              @map("lead_id") @db.Uuid
+  audioPath           String              @map("audio_path")
+  durationSec         Int?                @map("duration_sec")
+  transcriptText      String?             @map("transcript_text")
+  transcriptionStatus TranscriptionStatus @default(QUEUED) @map("transcription_status")
+  segments            Json?
+  createdByUserId     String              @map("created_by_user_id") @db.Uuid
+  createdAt           DateTime            @default(now()) @map("created_at")
+  deletedAt           DateTime?           @map("deleted_at")
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
