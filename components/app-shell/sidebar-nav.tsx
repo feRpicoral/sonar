@@ -20,7 +20,13 @@ const NAV = [
   },
 ] as const;
 
-export function SidebarNav({ leadsCount }: { leadsCount?: number }) {
+export function SidebarNav({
+  leadsCount,
+  onNavigate,
+}: {
+  leadsCount?: number;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
 
   return (
@@ -37,6 +43,7 @@ export function SidebarNav({ leadsCount }: { leadsCount?: number }) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               aria-current={matches ? "page" : undefined}
               className={cn(
                 "flex h-[34px] items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] transition-colors",
