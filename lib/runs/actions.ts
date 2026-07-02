@@ -6,6 +6,7 @@ import { after } from "next/server";
 import { runAgent } from "@/lib/agents/runner";
 import { writeAudit } from "@/lib/audit/log";
 import { requireSessionOrOnboard } from "@/lib/auth/session";
+import { getRunUsage } from "@/lib/billing/usage";
 import { asRunId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
 
@@ -13,19 +14,25 @@ export async function retryRunAction(runId: string): Promise<{ error?: string }>
   const session = await requireSessionOrOnboard();
   const db = getDb(session.orgId);
 
-  const run = await db.agentRun.findUnique({
-    where: { id: runId },
-    select: { id: true, status: true },
-  });
-  if (!run) return { error: "Run not found" };
-  if (run.status === "RUNNING" || run.status === "PENDING") {
-    return { error: "Run is already in progress" };
+  const usage = await getRunUsage(session.orgId);
+  if (usage.atLimit) {
+    return {
+      error: `You've used all ${usage.limit} agent runs on the Free plan this month. Upgrade to Pro for unlimited runs.`,
+    };
   }
 
-  await db.agentRun.update({
-    where: { id: runId },
+  const claim = await db.agentRun.updateMany({
+    where: { id: runId, status: { notIn: ["RUNNING", "PENDING"] } },
     data: { status: "PENDING", completedAt: null },
   });
+  if (claim.count === 0) {
+    const run = await db.agentRun.findUnique({
+      where: { id: runId },
+      select: { id: true, status: true },
+    });
+    if (!run) return { error: "Run not found" };
+    return { error: "Run is already in progress" };
+  }
 
   await writeAudit({
     orgId: session.orgId,
