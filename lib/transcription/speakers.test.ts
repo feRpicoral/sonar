@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { assignSpeakers, speakerLabel } from "./speakers";
 
 describe("assignSpeakers", () => {
-  it("opens with the rep and keeps the same speaker across tight segments", () => {
+  it("keeps the same inferred speaker across tight segments", () => {
     const result = assignSpeakers([
       { start: 0, end: 2, text: "Hi there" },
       { start: 2.1, end: 4, text: "thanks for joining" },
@@ -22,8 +22,8 @@ describe("assignSpeakers", () => {
     expect(result.map((s) => s.speaker)).toEqual(["rep", "lead", "rep"]);
   });
 
-  it("labels the rep as You and the lead by name", () => {
-    expect(speakerLabel("rep", "Maria Alvarez")).toBe("You");
-    expect(speakerLabel("lead", "Maria Alvarez")).toBe("Maria Alvarez");
+  it("labels inferred speakers without claiming identity", () => {
+    expect(speakerLabel("rep")).toBe("Speaker A");
+    expect(speakerLabel("lead")).toBe("Speaker B");
   });
 });
