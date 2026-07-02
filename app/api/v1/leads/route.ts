@@ -70,33 +70,40 @@ export async function POST(req: NextRequest) {
   }
 
   const db = getDb(auth.auth.orgId);
-  const lead = await db.lead.create({
-    data: {
-      orgId: auth.auth.orgId,
-      name: parsed.data.name,
-      email: parsed.data.email ?? null,
-      companyName: parsed.data.companyName ?? null,
-      companyWebsite: parsed.data.companyWebsite ?? null,
-      status: parsed.data.status ?? "DISCOVERY",
-      createdByUserId: admin.userId,
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      companyName: true,
-      status: true,
-      createdAt: true,
-    },
-  });
+  const lead = await db.$transaction(async (tx) => {
+    const created = await tx.lead.create({
+      data: {
+        orgId: auth.auth.orgId,
+        name: parsed.data.name,
+        email: parsed.data.email ?? null,
+        companyName: parsed.data.companyName ?? null,
+        companyWebsite: parsed.data.companyWebsite ?? null,
+        status: parsed.data.status ?? "DISCOVERY",
+        createdByUserId: admin.userId,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        companyName: true,
+        status: true,
+        createdAt: true,
+      },
+    });
 
-  await writeAudit({
-    orgId: auth.auth.orgId,
-    actorUserId: null,
-    action: "lead.created",
-    targetType: "lead",
-    targetId: asLeadId(lead.id),
-    metadata: { source: "api", apiKeyId: auth.auth.apiKeyId, name: lead.name },
+    await writeAudit(
+      {
+        orgId: auth.auth.orgId,
+        actorUserId: null,
+        action: "lead.created",
+        targetType: "lead",
+        targetId: asLeadId(created.id),
+        metadata: { source: "api", apiKeyId: auth.auth.apiKeyId, name: created.name },
+      },
+      tx,
+    );
+
+    return created;
   });
 
   await publishEvent(auth.auth.orgId, "lead.created", {

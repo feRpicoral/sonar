@@ -1,7 +1,19 @@
+import type { Prisma } from "@prisma/client";
 import { headers } from "next/headers";
 
 import { getPrisma } from "@/lib/db/client";
 import type { OrgId, UserId } from "@/lib/db/types";
+
+// A transaction client that can write an audit row. Structural on purpose so it
+// accepts both the base `getPrisma().$transaction` client and the extended
+// `getDb(orgId).$transaction` client. Passing it lets an audit entry be written
+// in the same transaction as the mutation it records, so a crash between the
+// two can't leave a committed mutation with no audit trail.
+export interface AuditTxClient {
+  auditLog: {
+    create: (args: { data: Prisma.AuditLogUncheckedCreateInput }) => Promise<unknown>;
+  };
+}
 
 /**
  * Canonical audit action vocabulary. New mutating endpoints must register here
@@ -46,7 +58,7 @@ export interface AuditEntry {
   metadata?: Record<string, unknown>;
 }
 
-export async function writeAudit(entry: AuditEntry): Promise<void> {
+export async function writeAudit(entry: AuditEntry, tx?: AuditTxClient): Promise<void> {
   let ip: string | undefined;
   let userAgent: string | undefined;
   try {
@@ -58,16 +70,20 @@ export async function writeAudit(entry: AuditEntry): Promise<void> {
     // Called outside of a request context (Inngest job, cron, etc.).
   }
 
-  await getPrisma().auditLog.create({
-    data: {
-      orgId: entry.orgId,
-      actorUserId: entry.actorUserId ?? null,
-      action: entry.action,
-      targetType: entry.targetType ?? null,
-      targetId: entry.targetId ?? null,
-      metadata: (entry.metadata ?? {}) as never,
-      ip: ip ?? null,
-      userAgent: userAgent ?? null,
-    },
-  });
+  const data = {
+    orgId: entry.orgId,
+    actorUserId: entry.actorUserId ?? null,
+    action: entry.action,
+    targetType: entry.targetType ?? null,
+    targetId: entry.targetId ?? null,
+    metadata: (entry.metadata ?? {}) as never,
+    ip: ip ?? null,
+    userAgent: userAgent ?? null,
+  };
+
+  if (tx) {
+    await tx.auditLog.create({ data });
+  } else {
+    await getPrisma().auditLog.create({ data });
+  }
 }

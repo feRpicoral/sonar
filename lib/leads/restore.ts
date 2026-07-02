@@ -19,18 +19,23 @@ export async function restoreLeadAction(leadId: string): Promise<{ error?: strin
   if (!lead) return { error: "Lead not found" };
   if (!lead.deletedAt) return { error: "Lead is not in trash" };
 
-  await db.lead.update({
-    where: { id: leadId },
-    data: { deletedAt: null },
-  });
+  await db.$transaction(async (tx) => {
+    await tx.lead.update({
+      where: { id: leadId },
+      data: { deletedAt: null },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "lead.restored",
-    targetType: "lead",
-    targetId: asLeadId(leadId),
-    metadata: { name: lead.name },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "lead.restored",
+        targetType: "lead",
+        targetId: asLeadId(leadId),
+        metadata: { name: lead.name },
+      },
+      tx,
+    );
   });
 
   revalidatePath("/trash");
