@@ -7,7 +7,7 @@ import { defineConfig } from "prisma/config";
 loadEnvConfig(process.cwd());
 
 // `prisma migrate` / `db push` / `db pull` run DDL, which the Supabase
-// transaction pooler (DATABASE_URL, port 6543) can't execute — they need the
+// transaction pooler (DATABASE_URL, port 6543) can't execute; they need the
 // direct connection (DIRECT_URL, port 5432). Fall back to DATABASE_URL for
 // setups without a separate pooler. Only the Prisma CLI reads this config; the
 // runtime client uses DATABASE_URL directly (lib/db/client.ts).
