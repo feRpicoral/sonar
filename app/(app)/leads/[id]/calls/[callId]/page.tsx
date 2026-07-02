@@ -74,7 +74,7 @@ export default async function CallDetailPage({
         </div>
 
         {isDone ? (
-          <TranscriptViewer segments={segments} leadName={call.lead.name} />
+          <TranscriptViewer segments={segments} />
         ) : (
           <StateCard status={call.transcriptionStatus} />
         )}

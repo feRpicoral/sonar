@@ -27,13 +27,7 @@ function highlight(text: string, query: string) {
   return parts;
 }
 
-export function TranscriptViewer({
-  segments,
-  leadName,
-}: {
-  segments: TranscriptSegment[];
-  leadName: string;
-}) {
+export function TranscriptViewer({ segments }: { segments: TranscriptSegment[] }) {
   const [q, setQ] = useState("");
   const query = q.trim().toLowerCase();
   const filtered = useMemo(
@@ -68,7 +62,7 @@ export function TranscriptViewer({
                   seg.speaker === "rep" ? "text-violet-fg" : "text-emerald-fg",
                 )}
               >
-                {speakerLabel(seg.speaker, leadName)}
+                {speakerLabel(seg.speaker)}
               </span>
               {highlight(seg.text.trim(), query)}
             </p>

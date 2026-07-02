@@ -10,9 +10,8 @@ export interface TranscriptSegment extends RawSegment {
   speaker: SpeakerRole;
 }
 
-// Groq Whisper (segment granularity) does not diarize, so we infer a two-party
-// turn structure: the conversation opens with the rep, and the speaker flips on
-// any pause longer than this between consecutive segments.
+// Groq Whisper does not diarize. These are neutral visual group labels inferred
+// from pauses, not speaker identities.
 const SPEAKER_PAUSE_SEC = 0.75;
 
 export function assignSpeakers(segments: RawSegment[]): TranscriptSegment[] {
@@ -27,6 +26,6 @@ export function assignSpeakers(segments: RawSegment[]): TranscriptSegment[] {
   });
 }
 
-export function speakerLabel(speaker: SpeakerRole, leadName: string): string {
-  return speaker === "rep" ? "You" : leadName;
+export function speakerLabel(speaker: SpeakerRole): string {
+  return speaker === "rep" ? "Speaker A" : "Speaker B";
 }

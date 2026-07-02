@@ -249,7 +249,7 @@ export async function softDeleteLeadAction(leadId: string): Promise<{ error?: st
 
   await db.lead.update({
     where: { id: leadId },
-    data: { deletedAt: new Date() },
+    data: { deletedAt: new Date(), deletedByUserId: session.userId },
   });
 
   await writeAudit({
@@ -315,7 +315,7 @@ export async function softDeleteLeadsBulkAction(
 
   const result = await db.lead.updateMany({
     where: { id: { in: leadIds }, deletedAt: null, ...ownership },
-    data: { deletedAt: new Date() },
+    data: { deletedAt: new Date(), deletedByUserId: session.userId },
   });
 
   await writeAudit({

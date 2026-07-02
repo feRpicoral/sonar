@@ -95,3 +95,12 @@ export async function getSignedCallPlaybackUrl(
   if (error) throw error;
   return data.signedUrl;
 }
+
+export async function deleteCallAudioObjects(paths: string[]): Promise<{ error?: string }> {
+  const uniquePaths = [...new Set(paths)].filter(Boolean);
+  if (uniquePaths.length === 0) return {};
+
+  const supabase = createAdminSupabase();
+  const { error } = await supabase.storage.from(CALL_AUDIO_BUCKET).remove(uniquePaths);
+  return error ? { error: error.message } : {};
+}

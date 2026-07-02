@@ -18,6 +18,19 @@ const schema = z.object({
     .regex(/^[a-z0-9-]+$/, "Lowercase letters, numbers, and hyphens only"),
 });
 
+export async function checkSlugAvailableAction(
+  slug: string,
+): Promise<{ available: boolean; valid: boolean }> {
+  const parsed = schema.shape.slug.safeParse(slug);
+  if (!parsed.success) return { available: false, valid: false };
+
+  const existing = await getPrisma().organization.findUnique({
+    where: { slug: parsed.data },
+    select: { id: true },
+  });
+  return { available: existing === null, valid: true };
+}
+
 export type CreateOrgResult = { error?: string };
 
 export async function createOrgAction(

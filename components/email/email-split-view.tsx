@@ -302,7 +302,7 @@ export function EmailSplitView(props: EmailSplitViewProps) {
                   </span>
                 ) : (
                   <Link href={`/leads/${leadId}`} className="text-rose-fg hover:underline">
-                    No email on file — add one to the lead
+                    No email on file. Add one to the lead
                   </Link>
                 )}
               </div>
@@ -478,7 +478,7 @@ function DeliveryBanner({ delivery }: { delivery: NonNullable<EmailSplitViewProp
     <div className="border-border bg-card flex items-center gap-2.5 rounded-lg border px-3 py-2">
       {descriptor && <StatusPill descriptor={descriptor} />}
       <span className="text-muted-foreground text-[12.5px]">
-        {delivery.recipientEmail ? `Delivered to ${delivery.recipientEmail}` : "Delivery recorded"}
+        {delivery.recipientEmail ? `Recipient: ${delivery.recipientEmail}` : "Delivery recorded"}
       </span>
     </div>
   );

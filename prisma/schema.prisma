@@ -37,6 +37,7 @@ model User {
   invitesCreated Invite[]     @relation("InviteCreatedBy")
   leadsCreated   Lead[]       @relation("LeadCreatedBy")
   leadsAssigned  Lead[]       @relation("LeadAssignedTo")
+  leadsDeleted   Lead[]       @relation("LeadDeletedBy")
   callsCreated   Call[]       @relation("CallCreatedBy")
   agentRuns      AgentRun[]
   emailsApproved EmailDraft[] @relation("EmailApprovedBy")
@@ -142,6 +143,7 @@ model Lead {
   status           LeadStatus @default(DISCOVERY)
   assignedToUserId String?    @map("assigned_to_user_id") @db.Uuid
   createdByUserId  String     @map("created_by_user_id") @db.Uuid
+  deletedByUserId  String?    @map("deleted_by_user_id") @db.Uuid
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
   deletedAt        DateTime?  @map("deleted_at")
@@ -149,6 +151,7 @@ model Lead {
   organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   assignedTo   User?          @relation("LeadAssignedTo", fields: [assignedToUserId], references: [id])
   createdBy    User           @relation("LeadCreatedBy", fields: [createdByUserId], references: [id])
+  deletedBy    User?          @relation("LeadDeletedBy", fields: [deletedByUserId], references: [id])
   calls        Call[]
   interactions Interaction[]
   agentRuns    AgentRun[]
