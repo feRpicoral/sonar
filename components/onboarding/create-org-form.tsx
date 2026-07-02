@@ -1,8 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { Check, Loader2, X } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -17,7 +18,9 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { createOrgAction } from "@/lib/onboarding/actions";
+import { checkSlugAvailableAction, createOrgAction } from "@/lib/onboarding/actions";
+
+type SlugStatus = "idle" | "checking" | "available" | "taken";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(80),
@@ -42,10 +45,35 @@ function slugify(s: string) {
 
 export function CreateOrgForm() {
   const [isPending, startTransition] = useTransition();
+  const [slugStatus, setSlugStatus] = useState<SlugStatus>("idle");
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", slug: "" },
   });
+
+  const slug = useWatch({ control: form.control, name: "slug" });
+  const lastChecked = useRef("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!slug || slug.length < 2) {
+        setSlugStatus("idle");
+        return;
+      }
+      lastChecked.current = slug;
+      setSlugStatus("checking");
+      checkSlugAvailableAction(slug)
+        .then((r) => {
+          if (lastChecked.current !== slug) return;
+          setSlugStatus(r.valid && r.available ? "available" : "taken");
+        })
+        .catch(() => {
+          if (lastChecked.current !== slug) return;
+          setSlugStatus("idle");
+        });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [slug]);
 
   const onSubmit = (data: FormValues) => {
     startTransition(async () => {
@@ -89,16 +117,33 @@ export function CreateOrgForm() {
             <FormItem>
               <FormLabel>URL slug</FormLabel>
               <FormControl>
-                <Input placeholder="acme" {...field} />
+                <div className="relative">
+                  <Input placeholder="acme" {...field} />
+                  {slugStatus !== "idle" && (
+                    <span className="absolute top-1/2 right-3 -translate-y-1/2">
+                      {slugStatus === "checking" && (
+                        <Loader2 className="text-muted-foreground size-3.5 animate-spin" />
+                      )}
+                      {slugStatus === "available" && <Check className="text-emerald-fg size-3.5" />}
+                      {slugStatus === "taken" && <X className="text-rose-fg size-3.5" />}
+                    </span>
+                  )}
+                </div>
               </FormControl>
-              <FormDescription>
-                Used in URLs and webhook payloads. Cannot be changed later.
-              </FormDescription>
+              {slugStatus === "available" ? (
+                <p className="text-emerald-fg text-xs">{slug} is available</p>
+              ) : slugStatus === "taken" ? (
+                <p className="text-rose-fg text-xs">{slug} is taken</p>
+              ) : (
+                <FormDescription>
+                  Used in URLs and webhook payloads. Cannot be changed later.
+                </FormDescription>
+              )}
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full" disabled={isPending}>
+        <Button type="submit" className="w-full" disabled={isPending || slugStatus === "taken"}>
           {isPending ? "Creating workspace…" : "Create workspace"}
         </Button>
       </form>
