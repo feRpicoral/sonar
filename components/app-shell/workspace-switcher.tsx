@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { switchOrgAction } from "@/lib/auth/switch-org";
+import { cn } from "@/lib/utils";
 
 export interface OrgItem {
   id: string;
@@ -23,44 +23,77 @@ export interface OrgItem {
   role: "ADMIN" | "MEMBER";
 }
 
+const LOGO_COLORS = ["bg-primary", "bg-emerald-solid", "bg-amber-solid", "bg-rose-solid"];
+
+function logoColor(index: number) {
+  return LOGO_COLORS[index % LOGO_COLORS.length];
+}
+
+function roleLabel(role: OrgItem["role"]) {
+  return role === "ADMIN" ? "Admin" : "Member";
+}
+
 export function WorkspaceSwitcher({ current, orgs }: { current: OrgItem; orgs: OrgItem[] }) {
   const [isPending, startTransition] = useTransition();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="w-full justify-between px-2" disabled={isPending}>
-          <span className="flex items-center gap-2 truncate">
-            <span className="bg-primary/10 text-primary flex h-5 w-5 items-center justify-center rounded font-mono text-[10px] font-semibold uppercase">
-              {current.name.charAt(0)}
-            </span>
-            <span className="truncate text-sm">{current.name}</span>
+        <button
+          type="button"
+          disabled={isPending}
+          className="border-border bg-card hover:border-border-strong focus-visible:ring-ring/50 flex h-11 w-full items-center gap-2.5 rounded-[9px] border px-2.5 text-left transition-colors focus-visible:ring-[3px] focus-visible:outline-none disabled:opacity-60"
+        >
+          <span className="bg-primary text-primary-foreground flex size-[26px] shrink-0 items-center justify-center rounded-[7px] text-[13px] font-bold">
+            {current.name.charAt(0).toUpperCase()}
           </span>
-          <ChevronsUpDown className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-        </Button>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13.5px] font-semibold">{current.name}</span>
+            <span className="text-muted-foreground block truncate text-[11px]">
+              {roleLabel(current.role)} · {current.slug}
+            </span>
+          </span>
+          <ChevronsUpDown className="text-muted-foreground size-[15px] shrink-0" />
+        </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuLabel className="text-muted-foreground text-xs">Workspaces</DropdownMenuLabel>
-        {orgs.map((org) => (
-          <DropdownMenuItem
-            key={org.id}
-            className="flex items-center justify-between"
-            onClick={() => {
-              if (org.id === current.id) return;
-              startTransition(async () => {
-                const result = await switchOrgAction(org.id);
-                if (result?.error) toast.error(result.error);
-              });
-            }}
-          >
-            <span className="truncate">{org.name}</span>
-            {org.id === current.id && <Check className="text-primary h-4 w-4" />}
-          </DropdownMenuItem>
-        ))}
+      <DropdownMenuContent align="start" className="w-60">
+        <DropdownMenuLabel className="text-muted-foreground font-mono text-[9.5px] tracking-wider uppercase">
+          Workspaces
+        </DropdownMenuLabel>
+        {orgs.map((org, i) => {
+          const active = org.id === current.id;
+          return (
+            <DropdownMenuItem
+              key={org.id}
+              className="gap-2"
+              onClick={() => {
+                if (active) return;
+                startTransition(async () => {
+                  const result = await switchOrgAction(org.id);
+                  if (result?.error) toast.error(result.error);
+                });
+              }}
+            >
+              <span
+                className={cn(
+                  "flex size-[22px] shrink-0 items-center justify-center rounded-md text-[11px] font-bold text-white",
+                  logoColor(i),
+                )}
+              >
+                {org.name.charAt(0).toUpperCase()}
+              </span>
+              <span className="truncate">{org.name}</span>
+              <span className="text-muted-foreground ml-auto font-mono text-[10px]">
+                {roleLabel(org.role)}
+              </span>
+              {active && <Check className="text-primary size-3.5 shrink-0" />}
+            </DropdownMenuItem>
+          );
+        })}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/create-org" className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
+          <Link href="/create-org" className="gap-2">
+            <Plus className="size-3.5" />
             Create workspace
           </Link>
         </DropdownMenuItem>
