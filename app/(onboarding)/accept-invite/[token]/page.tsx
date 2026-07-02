@@ -4,13 +4,14 @@ import { AcceptInviteButton } from "@/components/onboarding/accept-invite-button
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { getPrisma } from "@/lib/db/client";
+import { hashInviteToken } from "@/lib/invites/token";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export default async function AcceptInvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
   const invite = await getPrisma().invite.findUnique({
-    where: { token },
+    where: { token: hashInviteToken(token) },
     select: {
       id: true,
       acceptedAt: true,
