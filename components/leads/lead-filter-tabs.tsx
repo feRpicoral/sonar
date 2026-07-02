@@ -3,43 +3,37 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-import { cn } from "@/lib/utils";
+import { Segmented, SegmentedCount, SegmentedItem } from "@/components/ui/segmented";
 
 import { buildLeadsHref } from "./leads-href";
 
 const TABS = [
-  { value: "all", label: "All" },
-  { value: "my", label: "My leads" },
-  { value: "unassigned", label: "Unassigned" },
+  { value: "all", label: "All", key: "all" },
+  { value: "my", label: "My leads", key: "my" },
+  { value: "unassigned", label: "Unassigned", key: "unassigned" },
 ] as const;
 
-export function LeadFilterTabs() {
+export function LeadFilterTabs({
+  counts,
+}: {
+  counts: { all: number; my: number; unassigned: number };
+}) {
   const params = useSearchParams();
   const current = params.get("filter") ?? "all";
 
   return (
-    <nav className="bg-muted inline-flex rounded-md p-0.5">
-      {TABS.map((tab) => {
-        const active = current === tab.value;
-        const href = buildLeadsHref(params, {
-          filter: tab.value === "all" ? null : tab.value,
-        });
-        return (
+    <Segmented>
+      {TABS.map((tab) => (
+        <SegmentedItem key={tab.value} asChild active={current === tab.value}>
           <Link
-            key={tab.value}
-            href={href}
+            href={buildLeadsHref(params, { filter: tab.value === "all" ? null : tab.value })}
             scroll={false}
-            className={cn(
-              "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-              active
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
           >
             {tab.label}
+            <SegmentedCount>{counts[tab.key]}</SegmentedCount>
           </Link>
-        );
-      })}
-    </nav>
+        </SegmentedItem>
+      ))}
+    </Segmented>
   );
 }

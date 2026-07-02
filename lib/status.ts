@@ -90,3 +90,10 @@ export const LEAD_STAGE_ORDER: LeadStatus[] = [
   "PROPOSAL",
   "CLOSED",
 ];
+
+export const CLOSED_GUARD_MESSAGE = "Can't move a closed lead back";
+
+/** A closed lead is terminal: it can only stay closed, never move back to an earlier stage. */
+export function canMoveLeadStage(from: LeadStatus, to: LeadStatus): boolean {
+  return !(from === "CLOSED" && to !== "CLOSED");
+}

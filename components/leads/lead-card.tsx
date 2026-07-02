@@ -1,7 +1,7 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { Globe, MoreHorizontal, Trash2 } from "lucide-react";
+import { MoreHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { softDeleteLeadAction, updateLeadStatusAction } from "@/lib/leads/actions";
+import { LEAD_STAGE_ORDER, leadStageMeta } from "@/lib/status";
 
 export interface LeadCardProps {
   id: string;
@@ -45,6 +46,8 @@ export interface LeadCardProps {
   } | null;
 }
 
+const AVATAR_COLORS = ["violet", "emerald", "amber", "solid"] as const;
+
 function initials(s: string) {
   return (
     s
@@ -54,6 +57,12 @@ function initials(s: string) {
       .map((x) => x.charAt(0).toUpperCase())
       .join("") || "?"
   );
+}
+
+function colorFor(id: string) {
+  let h = 0;
+  for (const c of id) h = (h + c.charCodeAt(0)) % AVATAR_COLORS.length;
+  return AVATAR_COLORS[h]!;
 }
 
 function hostFromUrl(url: string): string {
@@ -77,6 +86,7 @@ export function LeadCard({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const changeStatus = (next: LeadCardProps["status"]) => {
+    if (next === status) return;
     startTransition(async () => {
       const result = await updateLeadStatusAction(id, next);
       if (result.error) toast.error(result.error);
@@ -92,79 +102,78 @@ export function LeadCard({
     });
   };
 
+  const company = companyName ?? (companyWebsite ? hostFromUrl(companyWebsite) : null);
+
   return (
     <>
-      <article className="group bg-card hover:border-border/80 border-border relative flex flex-col gap-2 rounded-lg border p-3 transition-colors">
+      <article className="group bg-card border-border hover:border-border-strong relative rounded-lg border p-3 transition-colors">
         <div className="flex items-start justify-between gap-2">
-          <Link
-            href={`/leads/${id}`}
-            className="min-w-0 flex-1 text-sm font-medium hover:underline"
-          >
-            {name}
+          <Link href={`/leads/${id}`} className="min-w-0 flex-1">
+            <div className="truncate text-[13px] leading-tight font-semibold hover:underline">
+              {name}
+            </div>
+            {company && (
+              <div className="text-muted-foreground truncate text-[11.5px]">{company}</div>
+            )}
           </Link>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                size="icon"
+                size="icon-xs"
                 variant="ghost"
-                className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+                className="text-muted-foreground -mt-0.5 -mr-1 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
                 disabled={isPending}
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
+                <MoreHorizontal />
                 <span className="sr-only">Actions</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuLabel className="text-muted-foreground text-[10px] tracking-wide uppercase">
+              <DropdownMenuLabel className="text-muted-foreground font-mono text-[9.5px] tracking-wider uppercase">
                 Move to
               </DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={status}
                 onValueChange={(v) => changeStatus(v as LeadCardProps["status"])}
               >
-                <DropdownMenuRadioItem value="DISCOVERY">Discovery</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="QUALIFIED">Qualified</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="DEMO">Demo</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="PROPOSAL">Proposal</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="CLOSED">Closed</DropdownMenuRadioItem>
+                {LEAD_STAGE_ORDER.map((s) => (
+                  <DropdownMenuRadioItem key={s} value={s}>
+                    {leadStageMeta[s].label}
+                  </DropdownMenuRadioItem>
+                ))}
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                className="text-destructive focus:text-destructive gap-2"
-                onClick={() => setConfirmOpen(true)}
+                variant="destructive"
+                className="gap-2"
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setConfirmOpen(true);
+                }}
               >
-                <Trash2 className="h-3.5 w-3.5" /> Delete
+                <Trash2 /> Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        {(companyName || companyWebsite) && (
-          <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
-            {companyWebsite && <Globe className="h-3 w-3" />}
-            <span className="truncate">
-              {companyName ?? (companyWebsite ? hostFromUrl(companyWebsite) : null)}
-            </span>
-          </div>
-        )}
-
-        <div className="mt-1 flex items-center justify-between">
-          <span className="text-muted-foreground font-mono text-[10px]">
-            {formatDistanceToNow(updatedAt, { addSuffix: true })}
-          </span>
+        <div className="mt-2.5 flex items-center justify-between">
           {assignedTo ? (
-            <Avatar className="h-5 w-5">
+            <Avatar size="sm">
               <AvatarImage
                 src={assignedTo.avatarUrl ?? undefined}
                 alt={assignedTo.name ?? assignedTo.email}
               />
-              <AvatarFallback className="text-[9px]">
+              <AvatarFallback color={colorFor(assignedTo.id)} className="text-[9px]">
                 {initials(assignedTo.name ?? assignedTo.email)}
               </AvatarFallback>
             </Avatar>
           ) : (
             <span className="text-muted-foreground font-mono text-[10px]">unassigned</span>
           )}
+          <span className="text-muted-foreground text-[11px]">
+            {formatDistanceToNow(updatedAt, { addSuffix: false })}
+          </span>
         </div>
       </article>
 

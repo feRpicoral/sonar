@@ -8,6 +8,7 @@ import { requireSessionOrOnboard } from "@/lib/auth/session";
 import { getPrisma } from "@/lib/db/client";
 import { asLeadId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
+import { canMoveLeadStage, CLOSED_GUARD_MESSAGE } from "@/lib/status";
 import { publishEvent } from "@/lib/webhooks/publish";
 
 const LEAD_STATUSES = ["DISCOVERY", "QUALIFIED", "DEMO", "PROPOSAL", "CLOSED"] as const;
@@ -86,6 +87,9 @@ export async function updateLeadStatusAction(
   });
   if (!existing) return { error: "Lead not found" };
   if (existing.status === status) return {};
+  if (!canMoveLeadStage(existing.status, status)) {
+    return { error: CLOSED_GUARD_MESSAGE };
+  }
 
   await db.lead.update({
     where: { id: leadId },
@@ -216,4 +220,70 @@ export async function softDeleteLeadAction(leadId: string): Promise<{ error?: st
 
   revalidatePath("/leads");
   return {};
+}
+
+export type BulkStatusResult = { error?: string; movedCount?: number; skippedCount?: number };
+
+export async function updateLeadStatusBulkAction(
+  leadIds: string[],
+  status: LeadStatus,
+): Promise<BulkStatusResult> {
+  const session = await requireSessionOrOnboard();
+  const db = getDb(session.orgId);
+  if (leadIds.length === 0) return {};
+
+  const leads = await db.lead.findMany({
+    where: { id: { in: leadIds }, deletedAt: null },
+    select: { id: true, status: true },
+  });
+  const movable = leads.filter((l) => canMoveLeadStage(l.status, status));
+  if (movable.length === 0) return { error: CLOSED_GUARD_MESSAGE };
+
+  const movableIds = movable.map((l) => l.id);
+  await db.lead.updateMany({ where: { id: { in: movableIds } }, data: { status } });
+
+  await writeAudit({
+    orgId: session.orgId,
+    actorUserId: session.userId,
+    action: "lead.updated",
+    targetType: "lead",
+    metadata: { bulk: true, count: movableIds.length, to: status },
+  });
+  await Promise.all(
+    movable.map((l) =>
+      publishEvent(session.orgId, "lead.updated", { leadId: l.id, from: l.status, to: status }),
+    ),
+  );
+
+  revalidatePath("/leads");
+  return { movedCount: movableIds.length, skippedCount: leadIds.length - movableIds.length };
+}
+
+export async function softDeleteLeadsBulkAction(
+  leadIds: string[],
+): Promise<{ error?: string; deletedCount?: number }> {
+  const session = await requireSessionOrOnboard();
+  const db = getDb(session.orgId);
+  if (leadIds.length === 0) return {};
+
+  const ownership =
+    session.role === "ADMIN"
+      ? {}
+      : { OR: [{ assignedToUserId: session.userId }, { createdByUserId: session.userId }] };
+
+  const result = await db.lead.updateMany({
+    where: { id: { in: leadIds }, deletedAt: null, ...ownership },
+    data: { deletedAt: new Date() },
+  });
+
+  await writeAudit({
+    orgId: session.orgId,
+    actorUserId: session.userId,
+    action: "lead.deleted",
+    targetType: "lead",
+    metadata: { bulk: true, count: result.count },
+  });
+
+  revalidatePath("/leads");
+  return { deletedCount: result.count };
 }

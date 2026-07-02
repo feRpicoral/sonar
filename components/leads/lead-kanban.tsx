@@ -16,22 +16,21 @@ import type { ReactNode } from "react";
 import { useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
 
+import { Dot } from "@/components/ui/status-pill";
 import { updateLeadStatusAction } from "@/lib/leads/actions";
+import {
+  canMoveLeadStage,
+  CLOSED_GUARD_MESSAGE,
+  LEAD_STAGE_ORDER,
+  leadStageMeta,
+} from "@/lib/status";
 import { cn } from "@/lib/utils";
 
 import { LeadCard, type LeadCardProps } from "./lead-card";
 
 type Status = LeadCardProps["status"];
 
-const COLUMNS: { status: Status; label: string }[] = [
-  { status: "DISCOVERY", label: "Discovery" },
-  { status: "QUALIFIED", label: "Qualified" },
-  { status: "DEMO", label: "Demo" },
-  { status: "PROPOSAL", label: "Proposal" },
-  { status: "CLOSED", label: "Closed" },
-];
-
-const COLUMN_IDS: ReadonlySet<string> = new Set(COLUMNS.map((c) => c.status));
+const COLUMN_IDS: ReadonlySet<string> = new Set(LEAD_STAGE_ORDER);
 
 const COARSE_QUERY = "(hover: none) and (pointer: coarse)";
 
@@ -61,8 +60,6 @@ export function LeadKanban({ leads }: { leads: LeadCardProps[] }) {
   const isCoarse = usePointerCoarse();
   const [activeLead, setActiveLead] = useState<LeadCardProps | null>(null);
 
-  // Distance threshold lets cards still receive clicks (Link, dropdown trigger)
-  // without immediately starting a drag.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const grouped: Record<Status, LeadCardProps[]> = {
@@ -91,6 +88,10 @@ export function LeadKanban({ leads }: { leads: LeadCardProps[] }) {
     const newStatus = overId as Status;
     const current = optimisticLeads.find((l) => l.id === leadId);
     if (!current || current.status === newStatus) return;
+    if (!canMoveLeadStage(current.status, newStatus)) {
+      toast.error(CLOSED_GUARD_MESSAGE);
+      return;
+    }
 
     startTransition(async () => {
       applyOptimistic({ leadId, status: newStatus });
@@ -107,22 +108,26 @@ export function LeadKanban({ leads }: { leads: LeadCardProps[] }) {
       onDragCancel={onDragCancel}
       onDragEnd={onDragEnd}
     >
-      <div className="flex h-full gap-3 overflow-x-auto px-4 pt-6 pb-8 sm:px-8 sm:pt-8">
-        {COLUMNS.map((col) => {
-          const items = grouped[col.status];
+      <div className="flex gap-4 overflow-x-auto px-6 py-5">
+        {LEAD_STAGE_ORDER.map((status) => {
+          const items = grouped[status];
+          const meta = leadStageMeta[status];
           return (
-            <div key={col.status} className="flex w-64 shrink-0 flex-col sm:w-72">
-              <header className="mb-3 flex items-center justify-between">
-                <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                  {col.label}
-                </h2>
-                <span className="text-muted-foreground bg-muted rounded-full px-2 py-0.5 font-mono text-[10px]">
+            <div key={status} className="flex w-[230px] shrink-0 flex-col lg:w-auto lg:flex-1">
+              <header className="flex items-center gap-[7px] px-1 pb-3">
+                <Dot stage={meta.stage} />
+                <h2 className="text-[12.5px] font-semibold">{meta.label}</h2>
+                <span className="text-muted-foreground ml-auto font-mono text-[11px]">
                   {items.length}
                 </span>
               </header>
-              <DroppableColumn status={col.status}>
+              <DroppableColumn
+                status={status}
+                invalid={Boolean(activeLead && !canMoveLeadStage(activeLead.status, status))}
+                active={Boolean(activeLead)}
+              >
                 {items.length === 0 ? (
-                  <div className="grid h-24 place-items-center">
+                  <div className="grid h-20 place-items-center">
                     <p className="text-muted-foreground font-mono text-[10px]">
                       {activeLead ? "drop here" : "empty"}
                     </p>
@@ -139,7 +144,7 @@ export function LeadKanban({ leads }: { leads: LeadCardProps[] }) {
       </div>
       <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }}>
         {activeLead ? (
-          <div className="rotate-1 cursor-grabbing shadow-lg ring-1 ring-black/5">
+          <div className="shadow-pop rotate-1 cursor-grabbing">
             <LeadCard {...activeLead} />
           </div>
         ) : null}
@@ -148,14 +153,26 @@ export function LeadKanban({ leads }: { leads: LeadCardProps[] }) {
   );
 }
 
-function DroppableColumn({ status, children }: { status: Status; children: ReactNode }) {
+function DroppableColumn({
+  status,
+  invalid,
+  active,
+  children,
+}: {
+  status: Status;
+  invalid: boolean;
+  active: boolean;
+  children: ReactNode;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "bg-muted/60 border-border/60 flex flex-1 flex-col gap-2 rounded-lg border p-2 transition-colors",
-        isOver && "border-primary/50 bg-primary/5",
+        "flex flex-1 flex-col gap-2 rounded-lg border border-transparent p-1 transition-colors",
+        active && "border-border border-dashed",
+        isOver && !invalid && "border-primary/50 bg-primary/5",
+        isOver && invalid && "border-rose-bd bg-rose-bg/40",
       )}
     >
       {children}
