@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 // Content-Security-Policy scoped to the app's integrations (Supabase, PostHog,
@@ -40,4 +41,12 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Wrap the config so the Sentry SDK instruments the client bundle and (when
+// SENTRY_AUTH_TOKEN / org / project are set in CI) uploads source maps. Without
+// this wrapper the client Sentry setup never runs.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+});
