@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -11,6 +12,7 @@ interface Heading {
 }
 
 export function DocsToc() {
+  const pathname = usePathname();
   const [headings, setHeadings] = useState<Heading[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -18,6 +20,7 @@ export function DocsToc() {
     let observer: IntersectionObserver | undefined;
     const raf = requestAnimationFrame(() => {
       const nodes = Array.from(document.querySelectorAll<HTMLElement>("main h2[id], main h3[id]"));
+      setActiveId(null);
       setHeadings(
         nodes.map((n) => ({
           id: n.id,
@@ -37,7 +40,7 @@ export function DocsToc() {
       cancelAnimationFrame(raf);
       observer?.disconnect();
     };
-  }, []);
+  }, [pathname]);
 
   if (headings.length === 0) return null;
 

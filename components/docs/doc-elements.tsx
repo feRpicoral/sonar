@@ -1,11 +1,21 @@
-import type React from "react";
+import * as React from "react";
 
 export { CodeBlock } from "@/components/docs/code-block";
 export { Callout } from "@/components/ui/callout";
 
+function textFromNode(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textFromNode).join("");
+  if (React.isValidElement<{ children?: React.ReactNode }>(node)) {
+    return textFromNode(node.props.children);
+  }
+  return "";
+}
+
 function slugify(node: React.ReactNode): string | undefined {
-  if (typeof node !== "string") return undefined;
-  return node
+  const text = textFromNode(node);
+  if (!text) return undefined;
+  return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
