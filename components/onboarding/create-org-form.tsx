@@ -53,6 +53,7 @@ export function CreateOrgForm() {
 
   const slug = useWatch({ control: form.control, name: "slug" });
   const lastChecked = useRef("");
+  const slugManuallyEdited = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -100,7 +101,9 @@ export function CreateOrgForm() {
                   {...field}
                   onChange={(e) => {
                     field.onChange(e);
-                    if (!form.getValues("slug")) {
+                    // Keep the slug in sync with the name until the user edits
+                    // the slug themselves, rather than only on the first keystroke.
+                    if (!slugManuallyEdited.current) {
                       form.setValue("slug", slugify(e.target.value), { shouldValidate: true });
                     }
                   }}
@@ -118,7 +121,14 @@ export function CreateOrgForm() {
               <FormLabel>URL slug</FormLabel>
               <FormControl>
                 <div className="relative">
-                  <Input placeholder="acme" {...field} />
+                  <Input
+                    placeholder="acme"
+                    {...field}
+                    onChange={(e) => {
+                      slugManuallyEdited.current = true;
+                      field.onChange(e);
+                    }}
+                  />
                   {slugStatus !== "idle" && (
                     <span className="absolute top-1/2 right-3 -translate-y-1/2">
                       {slugStatus === "checking" && (
