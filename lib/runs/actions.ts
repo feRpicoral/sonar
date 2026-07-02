@@ -13,19 +13,18 @@ export async function retryRunAction(runId: string): Promise<{ error?: string }>
   const session = await requireSessionOrOnboard();
   const db = getDb(session.orgId);
 
-  const run = await db.agentRun.findUnique({
-    where: { id: runId },
-    select: { id: true, status: true },
-  });
-  if (!run) return { error: "Run not found" };
-  if (run.status === "RUNNING" || run.status === "PENDING") {
-    return { error: "Run is already in progress" };
-  }
-
-  await db.agentRun.update({
-    where: { id: runId },
+  const claim = await db.agentRun.updateMany({
+    where: { id: runId, status: { notIn: ["RUNNING", "PENDING"] } },
     data: { status: "PENDING", completedAt: null },
   });
+  if (claim.count === 0) {
+    const run = await db.agentRun.findUnique({
+      where: { id: runId },
+      select: { id: true, status: true },
+    });
+    if (!run) return { error: "Run not found" };
+    return { error: "Run is already in progress" };
+  }
 
   await writeAudit({
     orgId: session.orgId,
