@@ -71,7 +71,7 @@ export default function WebhooksDocsPage() {
 
       <H2>Payload shape</H2>
       <CodeBlock language="json">{`{
-  "id": "evt_8a3f...",
+  "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
   "type": "lead.created",
   "orgId": "...",
   "deliveredAt": "2026-05-15T14:23:00.000Z",
@@ -99,14 +99,14 @@ function verifySonarSignature(rawBody, header, secret) {
     header.split(",").map((p) => p.split("="))
   );
   const t = Number(parts.t);
-  if (Math.abs(Math.floor(Date.now() / 1000) - t) > 300) return false;
+  if (!t || Math.abs(Math.floor(Date.now() / 1000) - t) > 300) return false;
   const expected = createHmac("sha256", secret)
     .update(\`\${t}.\${rawBody}\`)
     .digest("hex");
-  return timingSafeEqual(
-    Buffer.from(parts.v1, "hex"),
-    Buffer.from(expected, "hex")
-  );
+  const received = Buffer.from(parts.v1 ?? "", "hex");
+  const digest = Buffer.from(expected, "hex");
+  // timingSafeEqual throws on length mismatch, so guard first.
+  return received.length === digest.length && timingSafeEqual(received, digest);
 }`}</CodeBlock>
 
       <H3>Python</H3>
