@@ -24,9 +24,10 @@ export async function getSession(): Promise<Session | null> {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
 
-  const activeOrgId =
-    (data.user.app_metadata?.active_org_id as string | undefined) ??
-    (data.user.user_metadata?.active_org_id as string | undefined);
+  // Only trust app_metadata: it is set exclusively via the service-role admin
+  // API, whereas user_metadata is writable by the user through supabase.auth
+  // (a member could point it at any org and bypass the switch-org flow).
+  const activeOrgId = data.user.app_metadata?.active_org_id as string | undefined;
   if (!activeOrgId) return null;
 
   const membership = await getPrisma().membership.findUnique({
@@ -66,9 +67,7 @@ export async function requireSessionOrOnboard(): Promise<Session> {
   });
   if (memberships.length === 0) redirect("/create-org");
 
-  let activeOrgId =
-    (user.app_metadata?.active_org_id as string | undefined) ??
-    (user.user_metadata?.active_org_id as string | undefined);
+  let activeOrgId = user.app_metadata?.active_org_id as string | undefined;
   const isValid = activeOrgId && memberships.some((m) => m.orgId === activeOrgId);
 
   if (!isValid) {
