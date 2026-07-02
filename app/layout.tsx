@@ -2,7 +2,7 @@ import "./globals.css";
 
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
 
 import { ThemeProvider } from "@/components/theme-provider";
@@ -12,6 +12,10 @@ export const metadata: Metadata = {
   title: "Sonar - AI sales enablement workspace",
   description:
     "Multi-agent orchestration for sales teams. Upload a call, get research, analysis, strategy, and a follow-up email in seconds.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#7c3aed",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
