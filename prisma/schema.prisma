@@ -318,6 +318,7 @@ model EmailDraft {
   body             String
   citations        Json             @default("[]")
   status           EmailDraftStatus @default(DRAFT)
+  failureReason    String?          @map("failure_reason")
   approvedByUserId String?          @map("approved_by_user_id") @db.Uuid
   approvedAt       DateTime?        @map("approved_at")
   createdAt        DateTime         @default(now()) @map("created_at")
@@ -337,8 +338,11 @@ model EmailDelivery {
   orgId           String              @map("org_id") @db.Uuid
   draftId         String              @map("draft_id") @db.Uuid
   resendMessageId String              @unique @map("resend_message_id")
+  recipientEmail  String?             @map("recipient_email")
   status          EmailDeliveryStatus @default(PENDING)
   events          Json                @default("[]")
+  failureReason   String?             @map("failure_reason")
+  failureCode     String?             @map("failure_code")
   sentAt          DateTime?           @map("sent_at")
   updatedAt       DateTime            @updatedAt @map("updated_at")
 
