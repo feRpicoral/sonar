@@ -1,22 +1,13 @@
 import { formatDistanceToNow } from "date-fns";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { RunViewerClient } from "@/components/runs/run-viewer-client";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { StatusPill } from "@/components/ui/status-pill";
 import { requireSessionOrOnboard } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/with-org";
-
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: "Queued",
-  RUNNING: "Running",
-  AWAITING_APPROVAL: "Awaiting approval",
-  COMPLETED: "Completed",
-  FAILED: "Failed",
-  CANCELLED: "Cancelled",
-};
+import { runStatusMeta } from "@/lib/status";
 
 export default async function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -31,6 +22,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
       startedAt: true,
       completedAt: true,
       lead: { select: { id: true, name: true, companyName: true } },
+      call: { select: { segments: true, durationSec: true } },
       emailDraft: { select: { id: true, status: true } },
       steps: {
         orderBy: { createdAt: "asc" },
@@ -39,8 +31,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
           status: true,
           output: true,
           errorMessage: true,
-          startedAt: true,
-          completedAt: true,
+          errorCode: true,
         },
       },
     },
@@ -48,70 +39,45 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
 
   if (!run) notFound();
 
-  const variant: "default" | "secondary" | "destructive" =
-    run.status === "COMPLETED" ? "default" : run.status === "FAILED" ? "destructive" : "secondary";
-
-  const draftReady =
-    run.emailDraft && (run.status === "AWAITING_APPROVAL" || run.status === "COMPLETED");
+  const segmentCount = Array.isArray(run.call?.segments) ? run.call.segments.length : 0;
+  const call = run.call ? { segmentCount, durationSec: run.call.durationSec } : null;
 
   return (
-    <div className="px-8 py-8">
-      <div className="mx-auto max-w-3xl space-y-8">
+    <div className="flex min-h-full flex-col">
+      <header className="bg-background sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b px-6">
         <Link
           href={`/leads/${run.lead.id}`}
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-xs transition-colors"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-[13px] transition-colors"
         >
-          <ArrowLeft className="h-3 w-3" /> Back to {run.lead.name}
+          <ArrowLeft className="size-3.5" /> {run.lead.name}
         </Link>
+        <StatusPill descriptor={runStatusMeta[run.status]} />
+      </header>
 
-        <header className="space-y-3">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Agent run</h1>
-              <p className="text-muted-foreground text-sm">
-                {run.lead.name}
-                {run.lead.companyName && ` , ${run.lead.companyName}`}
-              </p>
-            </div>
-            <Badge variant={variant} className="font-mono text-[10px]">
-              {STATUS_LABELS[run.status] ?? run.status.toLowerCase()}
-            </Badge>
-          </div>
-          <p className="text-muted-foreground font-mono text-xs">
-            started {formatDistanceToNow(run.startedAt, { addSuffix: true })}
+      <div className="mx-auto w-full max-w-3xl px-6 py-7">
+        <div className="mb-6">
+          <h1 className="text-xl font-semibold tracking-tight">Agent run</h1>
+          <p className="text-muted-foreground mt-1 text-[13px]">
+            {run.lead.name}
+            {run.lead.companyName && ` · ${run.lead.companyName}`} · started{" "}
+            {formatDistanceToNow(run.startedAt, { addSuffix: true })}
           </p>
-        </header>
+        </div>
 
         <RunViewerClient
+          runId={run.id}
           runStatus={run.status}
+          leadName={run.lead.name}
+          call={call}
+          emailDraft={run.emailDraft}
           steps={run.steps.map((s) => ({
             node: s.node,
             status: s.status,
             output: s.output,
             errorMessage: s.errorMessage,
+            errorCode: s.errorCode,
           }))}
         />
-
-        {draftReady && run.emailDraft && (
-          <div className="bg-card border-primary/30 flex items-center justify-between rounded-lg border px-4 py-3">
-            <div>
-              <p className="text-sm font-medium">
-                {run.emailDraft.status === "SENT" ? "Email sent" : "Email draft ready for review"}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                {run.emailDraft.status === "SENT"
-                  ? "Open the draft to see citations and delivery status."
-                  : "Open the split-view to approve, edit, or regenerate with feedback."}
-              </p>
-            </div>
-            <Button asChild size="sm" className="gap-1.5">
-              <Link href={`/emails/${run.emailDraft.id}/approve`}>
-                {run.emailDraft.status === "SENT" ? "View" : "Review"}
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -207,6 +207,7 @@ async function runStep<T>(
       data: {
         status: "FAILED",
         errorMessage: message,
+        errorCode: `${node.toLowerCase()}.error`,
         completedAt: new Date(),
       },
     });
