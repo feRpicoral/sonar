@@ -31,12 +31,42 @@ const READ_OR_MUTATE_OPS = new Set([
   "groupBy",
   "update",
   "updateMany",
+  "updateManyAndReturn",
   "delete",
   "deleteMany",
 ]);
 
 const CREATE_ONE_OPS = new Set(["create"]);
 const CREATE_MANY_OPS = new Set(["createMany", "createManyAndReturn"]);
+
+/**
+ * Mutate `args` in place to scope a single Prisma operation to `orgId`.
+ * Fails closed: an operation this function does not recognise throws rather than
+ * running unscoped, so a future Prisma op against a tenant model can never
+ * silently leak across organizations.
+ */
+export function scopeArgsToOrg(op: string, args: Record<string, unknown>, orgId: OrgId): void {
+  if (READ_OR_MUTATE_OPS.has(op)) {
+    args.where = { ...((args.where as object | undefined) ?? {}), orgId };
+  } else if (CREATE_ONE_OPS.has(op)) {
+    args.data = { ...((args.data as object | undefined) ?? {}), orgId };
+  } else if (CREATE_MANY_OPS.has(op)) {
+    const data = args.data;
+    if (Array.isArray(data)) {
+      args.data = data.map((d) => ({ ...(d as object), orgId }));
+    } else if (data && typeof data === "object") {
+      args.data = { ...(data as object), orgId };
+    }
+  } else if (op === "upsert") {
+    args.where = { ...((args.where as object | undefined) ?? {}), orgId };
+    args.create = { ...((args.create as object | undefined) ?? {}), orgId };
+  } else {
+    throw new Error(
+      `getDb: unhandled Prisma operation "${op}" on a multi-tenant model. Add it to the ` +
+        `with-org extension so orgId scoping is enforced.`,
+    );
+  }
+}
 
 /**
  * Returns a Prisma client extended to auto-inject `orgId` on every operation
@@ -63,21 +93,7 @@ export function getDb(orgId: OrgId) {
           const op = operation as string;
           const a = args as Record<string, unknown>;
 
-          if (READ_OR_MUTATE_OPS.has(op)) {
-            a.where = { ...((a.where as object | undefined) ?? {}), orgId };
-          } else if (CREATE_ONE_OPS.has(op)) {
-            a.data = { ...((a.data as object | undefined) ?? {}), orgId };
-          } else if (CREATE_MANY_OPS.has(op)) {
-            const data = a.data;
-            if (Array.isArray(data)) {
-              a.data = data.map((d) => ({ ...(d as object), orgId }));
-            } else if (data && typeof data === "object") {
-              a.data = { ...(data as object), orgId };
-            }
-          } else if (op === "upsert") {
-            a.where = { ...((a.where as object | undefined) ?? {}), orgId };
-            a.create = { ...((a.create as object | undefined) ?? {}), orgId };
-          }
+          scopeArgsToOrg(op, a, orgId);
 
           return query(args);
         },
