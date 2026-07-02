@@ -6,12 +6,20 @@ import { after } from "next/server";
 import { runAgent } from "@/lib/agents/runner";
 import { writeAudit } from "@/lib/audit/log";
 import { requireSessionOrOnboard } from "@/lib/auth/session";
+import { getRunUsage } from "@/lib/billing/usage";
 import { asRunId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
 
 export async function retryRunAction(runId: string): Promise<{ error?: string }> {
   const session = await requireSessionOrOnboard();
   const db = getDb(session.orgId);
+
+  const usage = await getRunUsage(session.orgId);
+  if (usage.atLimit) {
+    return {
+      error: `You've used all ${usage.limit} agent runs on the Free plan this month. Upgrade to Pro for unlimited runs.`,
+    };
+  }
 
   const claim = await db.agentRun.updateMany({
     where: { id: runId, status: { notIn: ["RUNNING", "PENDING"] } },

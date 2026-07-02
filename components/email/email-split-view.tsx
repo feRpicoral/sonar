@@ -169,10 +169,7 @@ export function EmailSplitView(props: EmailSplitViewProps) {
 
   const transcriptText = () =>
     segments
-      .map(
-        (s) =>
-          `[${formatTimestamp(s.start)}] ${speakerLabel(s.speaker, leadName)}: ${s.text.trim()}`,
-      )
+      .map((s) => `[${formatTimestamp(s.start)}] ${speakerLabel(s.speaker)}: ${s.text.trim()}`)
       .join("\n");
 
   const copyTranscript = () => {
@@ -450,7 +447,7 @@ export function EmailSplitView(props: EmailSplitViewProps) {
                             seg.speaker === "rep" ? "text-violet-fg" : "text-emerald-fg",
                           )}
                         >
-                          {speakerLabel(seg.speaker, leadName)}
+                          {speakerLabel(seg.speaker)}
                         </span>
                         {seg.text.trim()}
                         {citedNumber != null && (
