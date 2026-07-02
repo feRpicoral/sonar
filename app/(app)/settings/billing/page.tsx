@@ -1,14 +1,19 @@
-import { ArrowUpRight, CheckCircle2, CreditCard, ExternalLink } from "lucide-react";
+import { ArrowUpRight, Check, CreditCard, ExternalLink } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { StatusPill } from "@/components/ui/status-pill";
+import { UsageMeter } from "@/components/ui/usage-meter";
 import { requireSessionOrOnboard } from "@/lib/auth/session";
 import { openPortalAction, startCheckoutAction } from "@/lib/billing/actions";
-import { getPrisma } from "@/lib/db/client";
+import { FREE_RUN_LIMIT } from "@/lib/billing/limits";
+import { getRunUsage } from "@/lib/billing/usage";
+import { getDb } from "@/lib/db/with-org";
+import { subscriptionStatusMeta } from "@/lib/status";
 
 const PLAN_FEATURES: Record<"FREE" | "PRO", string[]> = {
   FREE: [
-    "10 agent runs per day",
+    `${FREE_RUN_LIMIT} agent runs per month`,
     "Unlimited leads and calls",
     "Email follow-ups (test inbox)",
     "Audit log",
@@ -21,16 +26,6 @@ const PLAN_FEATURES: Record<"FREE" | "PRO", string[]> = {
   ],
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  ACTIVE: "Active",
-  PAST_DUE: "Past due",
-  CANCELED: "Cancelled",
-  TRIALING: "Trial",
-  INCOMPLETE: "Incomplete",
-  INCOMPLETE_EXPIRED: "Expired",
-  UNPAID: "Unpaid",
-};
-
 export default async function BillingPage({
   searchParams,
 }: {
@@ -38,17 +33,15 @@ export default async function BillingPage({
 }) {
   const session = await requireSessionOrOnboard();
   const { status: checkoutStatus } = await searchParams;
-  const prisma = getPrisma();
+  const db = getDb(session.orgId);
 
-  const subscription = await prisma.subscription.findUnique({
-    where: { orgId: session.orgId },
-    select: {
-      plan: true,
-      status: true,
-      currentPeriodEnd: true,
-      stripeSubscriptionId: true,
-    },
-  });
+  const [subscription, usage] = await Promise.all([
+    db.subscription.findUnique({
+      where: { orgId: session.orgId },
+      select: { plan: true, status: true, currentPeriodEnd: true, stripeSubscriptionId: true },
+    }),
+    getRunUsage(session.orgId),
+  ]);
 
   const plan = subscription?.plan ?? "FREE";
   const isAdmin = session.role === "ADMIN";
@@ -57,33 +50,29 @@ export default async function BillingPage({
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-lg font-medium">Billing</h2>
+        <h2 className="text-lg font-semibold">Billing</h2>
         <p className="text-muted-foreground text-sm">
-          Manage your subscription, payment method, and invoices.
+          Manage your subscription, usage, and payment method.
         </p>
       </div>
 
       {checkoutStatus === "success" && (
-        <div className="border-success/30 bg-success/5 flex items-center gap-2 rounded-md border px-4 py-2.5 text-sm">
-          <CheckCircle2 className="text-success h-4 w-4" />
-          <span>Checkout complete. Your workspace will sync to Pro within seconds.</span>
-        </div>
+        <Alert variant="success">
+          <Check />
+          <AlertTitle>Checkout complete</AlertTitle>
+          <AlertDescription>Your workspace will sync to Pro within seconds.</AlertDescription>
+        </Alert>
       )}
 
-      <section className="bg-card border-border overflow-hidden rounded-lg border">
-        <header className="border-border flex items-center justify-between border-b px-5 py-3">
-          <div className="flex items-center gap-3">
-            <h3 className="text-sm font-medium">Current plan</h3>
-            <Badge
-              variant={plan === "PRO" ? "default" : "secondary"}
-              className="font-mono text-[10px]"
-            >
+      <section className="bg-card border-border shadow-panel space-y-4 rounded-xl border p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold">Current plan</h3>
+            <span className="bg-violet-bg text-violet-fg border-violet-bd rounded-full border px-2 py-0.5 text-[11px] font-semibold capitalize">
               {plan.toLowerCase()}
-            </Badge>
-            {subscription && subscription.status !== "ACTIVE" && (
-              <Badge variant="outline" className="font-mono text-[10px]">
-                {STATUS_LABELS[subscription.status] ?? subscription.status.toLowerCase()}
-              </Badge>
+            </span>
+            {subscription && (
+              <StatusPill descriptor={subscriptionStatusMeta[subscription.status]} />
             )}
           </div>
           {subscription?.currentPeriodEnd && (
@@ -91,34 +80,42 @@ export default async function BillingPage({
               renews {subscription.currentPeriodEnd.toISOString().slice(0, 10)}
             </p>
           )}
-        </header>
-        <div className="grid gap-4 px-5 py-4 sm:grid-cols-2">
-          <ul className="space-y-2">
-            {PLAN_FEATURES[plan].map((feature) => (
-              <li key={feature} className="flex items-start gap-2 text-sm">
-                <CheckCircle2 className="text-success mt-0.5 h-3.5 w-3.5 shrink-0" />
-                <span>{feature}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="flex flex-col items-end justify-end gap-2">
-            {plan === "FREE" && isAdmin && (
-              <form action={startCheckoutAction}>
-                <Button type="submit" className="gap-1.5">
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                  Upgrade to Pro
-                </Button>
-              </form>
-            )}
-            {hasCustomer && isAdmin && (
-              <form action={openPortalAction}>
-                <Button type="submit" variant="outline" size="sm" className="gap-1.5">
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Manage in Stripe
-                </Button>
-              </form>
+        </div>
+
+        {usage.limit != null && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="text-muted-foreground">Agent runs this month</span>
+              <span className="font-mono tabular-nums">
+                {usage.used} / {usage.limit}
+              </span>
+            </div>
+            <UsageMeter value={usage.used} max={usage.limit} />
+            {usage.atLimit && (
+              <p className="text-amber-fg text-[12.5px]">
+                You&rsquo;ve hit your monthly run limit. Upgrade to Pro for unlimited runs.
+              </p>
             )}
           </div>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          {plan === "FREE" && isAdmin && (
+            <form action={startCheckoutAction}>
+              <Button type="submit">
+                <ArrowUpRight />
+                Upgrade to Pro
+              </Button>
+            </form>
+          )}
+          {hasCustomer && isAdmin && (
+            <form action={openPortalAction}>
+              <Button type="submit" variant="outline" size="sm">
+                <ExternalLink />
+                Manage in Stripe
+              </Button>
+            </form>
+          )}
         </div>
       </section>
 
@@ -129,22 +126,28 @@ export default async function BillingPage({
       )}
 
       <section className="space-y-3">
-        <h3 className="text-sm font-medium">Compare plans</h3>
+        <h3 className="text-sm font-semibold">Compare plans</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           {(["FREE", "PRO"] as const).map((p) => (
-            <div key={p} className={cnPlan(p === plan)}>
+            <div
+              key={p}
+              className={
+                "bg-card space-y-3 rounded-xl border p-4 " +
+                (p === plan ? "border-primary/40" : "border-border")
+              }
+            >
               <div className="flex items-center justify-between">
-                <h4 className="font-medium capitalize">{p.toLowerCase()}</h4>
+                <h4 className="font-semibold capitalize">{p.toLowerCase()}</h4>
                 {p === plan && (
-                  <Badge variant="default" className="font-mono text-[10px]">
+                  <span className="bg-primary text-primary-foreground rounded-md px-2 py-0.5 font-mono text-[10px]">
                     current
-                  </Badge>
+                  </span>
                 )}
               </div>
               <ul className="space-y-1.5">
                 {PLAN_FEATURES[p].map((f) => (
                   <li key={f} className="flex items-start gap-2 text-xs">
-                    <CheckCircle2 className="text-success mt-0.5 h-3 w-3 shrink-0" />
+                    <Check className="text-emerald-fg mt-0.5 size-3 shrink-0" />
                     <span className="text-muted-foreground">{f}</span>
                   </li>
                 ))}
@@ -155,16 +158,9 @@ export default async function BillingPage({
       </section>
 
       <p className="text-muted-foreground font-mono text-[10px]">
-        <CreditCard className="mr-1 inline h-3 w-3" />
+        <CreditCard className="mr-1 inline size-3" />
         billing is in stripe test mode for this demo deployment
       </p>
     </div>
   );
-}
-
-function cnPlan(active: boolean) {
-  return [
-    "bg-card rounded-lg border space-y-3 p-4",
-    active ? "border-primary/40" : "border-border",
-  ].join(" ");
 }

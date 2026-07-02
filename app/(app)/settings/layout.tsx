@@ -2,16 +2,12 @@ import { SettingsNav } from "@/components/app-shell/settings-nav";
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-8 py-10">
-      <div className="mx-auto max-w-5xl">
-        <header className="mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        </header>
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[180px_1fr]">
-          <SettingsNav />
-          <div className="min-w-0">{children}</div>
-        </div>
-      </div>
+    <div className="flex min-h-full flex-col">
+      <header className="bg-background sticky top-0 z-10 flex h-14 items-center border-b px-6">
+        <h1 className="text-[15px] font-semibold">Settings</h1>
+      </header>
+      <SettingsNav />
+      <div className="mx-auto w-full max-w-4xl px-6 py-7">{children}</div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { runAgent } from "@/lib/agents/runner";
 import { verifyApiKey } from "@/lib/api-keys/verify";
 import { writeAudit } from "@/lib/audit/log";
+import { getRunUsage } from "@/lib/billing/usage";
 import { getPrisma } from "@/lib/db/client";
 import { asRunId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
@@ -27,6 +28,14 @@ export async function POST(req: NextRequest) {
   }
 
   const db = getDb(auth.auth.orgId);
+
+  const usage = await getRunUsage(auth.auth.orgId);
+  if (usage.atLimit) {
+    return NextResponse.json(
+      { error: `Free plan monthly run limit (${usage.limit}) reached. Upgrade to Pro.` },
+      { status: 402 },
+    );
+  }
 
   const lead = await db.lead.findUnique({
     where: { id: parsed.data.leadId, deletedAt: null },
