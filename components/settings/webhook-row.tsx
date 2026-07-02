@@ -2,8 +2,10 @@
 
 import { formatDistanceToNow } from "date-fns";
 import {
+  Check,
   ChevronDown,
   ChevronUp,
+  Copy,
   MoreHorizontal,
   Pause,
   Play,
@@ -15,6 +17,7 @@ import {
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +30,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,6 +75,8 @@ export function WebhookRow(props: WebhookRowProps) {
   const { id, url, description, events, active, createdAt, deliveries } = props;
   const [expanded, setExpanded] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [rotatedSecret, setRotatedSecret] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const onToggle = () => {
@@ -82,10 +95,19 @@ export function WebhookRow(props: WebhookRowProps) {
         return;
       }
       if (result.secret) {
-        await navigator.clipboard.writeText(result.secret).catch(() => {});
-        toast.success("New secret copied to clipboard");
+        // Reveal the new secret in a dialog. Clipboard writes can silently fail,
+        // and this is the only time the plaintext secret is ever available.
+        setCopied(false);
+        setRotatedSecret(result.secret);
       }
     });
+  };
+
+  const onCopySecret = async () => {
+    if (!rotatedSecret) return;
+    await navigator.clipboard.writeText(rotatedSecret);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
 
   const onDelete = () => {
@@ -232,6 +254,42 @@ export function WebhookRow(props: WebhookRowProps) {
           </div>
         )}
       </div>
+
+      <Dialog
+        open={rotatedSecret !== null}
+        onOpenChange={(next) => {
+          if (!next) setRotatedSecret(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>New signing secret</DialogTitle>
+            <DialogDescription>
+              Copy it now - this is the only time it will be shown. The previous secret stops
+              working immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <Alert>
+            <AlertDescription className="font-mono text-xs break-all">
+              {rotatedSecret}
+            </AlertDescription>
+          </Alert>
+          <Button onClick={onCopySecret} variant="outline" className="w-full gap-1.5">
+            {copied ? (
+              <>
+                <Check className="text-success h-3.5 w-3.5" /> Copied
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" /> Copy to clipboard
+              </>
+            )}
+          </Button>
+          <DialogFooter>
+            <Button onClick={() => setRotatedSecret(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
