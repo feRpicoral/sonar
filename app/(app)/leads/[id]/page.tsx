@@ -1,16 +1,17 @@
 import { formatDistanceToNow } from "date-fns";
-import { ArrowLeft, ExternalLink, FileAudio, Loader2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileAudio } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CancelTranscriptionButton } from "@/components/calls/cancel-transcription-button";
 import { LeadDropzoneOverlay } from "@/components/calls/lead-dropzone-overlay";
 import { UploadCallDialog } from "@/components/calls/upload-call-dialog";
-import { LeadEmailEditor } from "@/components/leads/lead-email-editor";
+import { EditLeadDialog } from "@/components/leads/edit-lead-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { DotPill, StatusPill } from "@/components/ui/status-pill";
 import { requireSessionOrOnboard } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/with-org";
+import { leadStageMeta, transcriptionStatusMeta } from "@/lib/status";
 import { formatTimestamp } from "@/lib/transcription/whisper";
 
 function initials(s: string) {
@@ -23,14 +24,6 @@ function initials(s: string) {
       .join("") || "?"
   );
 }
-
-const STATUS_LABELS: Record<string, string> = {
-  DISCOVERY: "Discovery",
-  QUALIFIED: "Qualified",
-  DEMO: "Demo",
-  PROPOSAL: "Proposal",
-  CLOSED: "Closed",
-};
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -57,7 +50,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         select: {
           id: true,
           durationSec: true,
-          transcriptText: true,
+          transcriptionStatus: true,
           createdAt: true,
         },
       },
@@ -66,52 +59,58 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   if (!lead || lead.deletedAt) notFound();
 
+  const stage = leadStageMeta[lead.status];
+
   return (
     <LeadDropzoneOverlay leadId={lead.id}>
-      <div className="px-8 py-8">
-        <div className="mx-auto max-w-4xl space-y-8">
+      <div className="flex min-h-full flex-col">
+        <header className="bg-background sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b px-6">
           <Link
             href="/leads"
-            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-xs transition-colors"
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-[13px] transition-colors"
           >
-            <ArrowLeft className="h-3 w-3" /> Back to leads
+            <ArrowLeft className="size-3.5" /> Leads
           </Link>
+          <div className="flex items-center gap-2">
+            <EditLeadDialog lead={lead} />
+            <UploadCallDialog leadId={lead.id} />
+          </div>
+        </header>
 
-          <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 space-y-2">
+        <div className="mx-auto w-full max-w-4xl space-y-6 px-6 py-7">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1.5">
               <h1 className="truncate text-2xl font-semibold tracking-tight">{lead.name}</h1>
-              {lead.companyName && (
-                <p className="text-muted-foreground text-sm">
-                  {lead.companyWebsite ? (
-                    <a
-                      href={lead.companyWebsite}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="hover:text-foreground inline-flex items-center gap-1 hover:underline"
-                    >
-                      {lead.companyName}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  ) : (
-                    lead.companyName
-                  )}
-                </p>
-              )}
-              <LeadEmailEditor leadId={lead.id} initialEmail={lead.email} />
+              <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                {lead.companyWebsite ? (
+                  <a
+                    href={lead.companyWebsite}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-foreground inline-flex items-center gap-1 hover:underline"
+                  >
+                    {lead.companyName ?? lead.companyWebsite}
+                    <ExternalLink className="size-3" />
+                  </a>
+                ) : (
+                  lead.companyName && <span>{lead.companyName}</span>
+                )}
+                {lead.email && (
+                  <>
+                    {(lead.companyName || lead.companyWebsite) && <span>·</span>}
+                    <span className="font-mono text-xs">{lead.email}</span>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <Badge variant="secondary" className="font-mono text-[10px]">
-                {STATUS_LABELS[lead.status]}
-              </Badge>
-              <UploadCallDialog leadId={lead.id} />
-            </div>
-          </header>
+            <DotPill stage={stage.stage}>{stage.label}</DotPill>
+          </div>
 
-          <section className="bg-card border-border grid gap-6 rounded-lg border p-6 sm:grid-cols-3">
+          <section className="bg-card border-border shadow-panel grid gap-6 rounded-xl border p-5 sm:grid-cols-3">
             <Field label="Assigned to">
               {lead.assignedTo ? (
                 <div className="flex items-center gap-2">
-                  <Avatar className="h-5 w-5">
+                  <Avatar size="sm">
                     <AvatarImage src={lead.assignedTo.avatarUrl ?? undefined} />
                     <AvatarFallback className="text-[9px]">
                       {initials(lead.assignedTo.name ?? lead.assignedTo.email)}
@@ -127,67 +126,75 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               <span className="text-sm">{lead.createdBy.name ?? lead.createdBy.email}</span>
             </Field>
             <Field label="Last activity">
-              <span className="text-muted-foreground font-mono text-xs">
-                {lead.updatedAt.toISOString().slice(0, 10)}
+              <span className="text-muted-foreground text-sm">
+                {formatDistanceToNow(lead.updatedAt, { addSuffix: true })}
               </span>
             </Field>
           </section>
 
           <section className="space-y-3">
             <header className="flex items-center justify-between">
-              <h2 className="text-sm font-medium">Calls</h2>
+              <h2 className="text-sm font-semibold">Calls</h2>
               <span className="text-muted-foreground font-mono text-xs">
                 {lead.calls.length} {lead.calls.length === 1 ? "recording" : "recordings"}
               </span>
             </header>
             {lead.calls.length === 0 ? (
-              <div className="bg-card border-border grid place-items-center rounded-lg border border-dashed py-16">
-                <div className="flex flex-col items-center gap-3 text-center">
-                  <div className="bg-muted flex h-10 w-10 items-center justify-center rounded-full">
-                    <FileAudio className="text-muted-foreground h-4 w-4" />
+              <div className="bg-card border-border grid place-items-center rounded-xl border border-dashed py-16">
+                <div className="flex max-w-[320px] flex-col items-center gap-3 text-center">
+                  <div className="bg-muted text-muted-foreground flex size-11 items-center justify-center rounded-full">
+                    <FileAudio className="size-5" />
                   </div>
-                  <p className="text-muted-foreground text-sm">
-                    Upload a recording to get a transcript with timestamps.
+                  <p className="text-sm font-semibold">No calls yet</p>
+                  <p className="text-muted-foreground text-[13px] leading-relaxed">
+                    Upload a recording (or drag it anywhere on this page) to get a transcript with
+                    timestamps.
                   </p>
+                  <UploadCallDialog leadId={lead.id} />
                 </div>
               </div>
             ) : (
-              <ul className="bg-card border-border overflow-hidden rounded-lg border">
-                {lead.calls.map((call) => (
-                  <li key={call.id} className="border-border border-b last:border-b-0">
-                    <Link
-                      href={`/leads/${id}/calls/${call.id}`}
-                      className="hover:bg-muted/30 flex items-center justify-between px-4 py-3 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-md">
-                          {call.transcriptText ? (
-                            <FileAudio className="text-muted-foreground h-4 w-4" />
-                          ) : (
-                            <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+              <div className="bg-card border-border shadow-panel overflow-hidden rounded-xl border">
+                {lead.calls.map((call, i) => {
+                  const done = call.transcriptionStatus === "DONE";
+                  const pending =
+                    call.transcriptionStatus === "QUEUED" ||
+                    call.transcriptionStatus === "TRANSCRIBING";
+                  return (
+                    <div key={call.id} className={i > 0 ? "border-border-2 border-t" : undefined}>
+                      <Link
+                        href={`/leads/${id}/calls/${call.id}`}
+                        className="hover:bg-muted/40 flex items-center justify-between gap-3 px-[18px] py-3 transition-colors"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
+                            <FileAudio className="size-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium">
+                              {done ? "Transcript ready" : "Recording"}
+                            </div>
+                            <div className="text-muted-foreground text-xs">
+                              {formatDistanceToNow(call.createdAt, { addSuffix: true })}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {call.durationSec != null && (
+                            <span className="text-muted-foreground font-mono text-xs">
+                              {formatTimestamp(call.durationSec)}
+                            </span>
                           )}
+                          <StatusPill
+                            descriptor={transcriptionStatusMeta[call.transcriptionStatus]}
+                          />
+                          {pending && <CancelTranscriptionButton callId={call.id} />}
                         </div>
-                        <div>
-                          <div className="text-sm font-medium">
-                            {call.transcriptText ? "Transcript ready" : "Transcribing…"}
-                          </div>
-                          <div className="text-muted-foreground text-xs">
-                            {formatDistanceToNow(call.createdAt, { addSuffix: true })}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {call.durationSec && (
-                          <span className="text-muted-foreground font-mono text-xs">
-                            {formatTimestamp(call.durationSec)}
-                          </span>
-                        )}
-                        {!call.transcriptText && <CancelTranscriptionButton callId={call.id} />}
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </section>
         </div>
@@ -198,8 +205,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1">
-      <div className="text-muted-foreground text-xs tracking-wide uppercase">{label}</div>
+    <div className="space-y-1.5">
+      <div className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
+        {label}
+      </div>
       <div>{children}</div>
     </div>
   );

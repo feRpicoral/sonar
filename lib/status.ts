@@ -5,6 +5,7 @@ import type {
   EmailDraftStatus,
   LeadStatus,
   SubscriptionStatus,
+  TranscriptionStatus,
   WebhookDeliveryStatus,
 } from "@prisma/client";
 import {
@@ -13,6 +14,7 @@ import {
   Clock,
   Eye,
   Loader2,
+  MicOff,
   Minus,
   MousePointerClick,
   Pencil,
@@ -73,6 +75,14 @@ export const subscriptionStatusMeta: Record<SubscriptionStatus, StatusDescriptor
   INCOMPLETE_EXPIRED: { label: "Incomplete expired", variant: "zinc", icon: Ban },
   UNPAID: { label: "Unpaid", variant: "rose", icon: TriangleAlert },
   CANCELED: { label: "Canceled", variant: "zinc", icon: Ban },
+};
+
+export const transcriptionStatusMeta: Record<TranscriptionStatus, StatusDescriptor> = {
+  QUEUED: { label: "Queued", variant: "zinc", icon: Clock },
+  TRANSCRIBING: { label: "Transcribing", variant: "violet", icon: Loader2, spin: true },
+  DONE: { label: "Transcribed", variant: "emerald", icon: Check },
+  NO_SPEECH: { label: "No speech", variant: "amber", icon: MicOff },
+  FAILED: { label: "Failed", variant: "rose", icon: X },
 };
 
 export const leadStageMeta: Record<LeadStatus, { label: string; stage: StageKey }> = {

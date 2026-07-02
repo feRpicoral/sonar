@@ -15,6 +15,7 @@ import {
   isAllowedAudioMime,
   MAX_AUDIO_BYTES,
 } from "@/lib/storage/audio";
+import { assignSpeakers } from "@/lib/transcription/speakers";
 import { transcribeAudio } from "@/lib/transcription/whisper";
 
 const prepareSchema = z.object({
@@ -82,10 +83,29 @@ export async function transcribeCallAction(callId: string): Promise<TranscribeRe
   if (call.deletedAt) return { ok: true };
   if (call.transcriptText) return { ok: true };
 
-  const audio = await downloadCallAudio(call.audioPath);
-  // The Blob from Supabase Storage carries the contentType that was set
-  // during upload, so audio.type is the right MIME to feed Groq.
-  const result = await transcribeAudio(audio, { mime: audio.type, baseName: call.id });
+  await db.call.updateMany({
+    where: { id: call.id, deletedAt: null },
+    data: { transcriptionStatus: "TRANSCRIBING" },
+  });
+
+  let result;
+  try {
+    const audio = await downloadCallAudio(call.audioPath);
+    // The Blob from Supabase Storage carries the contentType that was set
+    // during upload, so audio.type is the right MIME to feed Groq.
+    result = await transcribeAudio(audio, { mime: audio.type, baseName: call.id });
+  } catch (err) {
+    await db.call.updateMany({
+      where: { id: call.id, deletedAt: null },
+      data: { transcriptionStatus: "FAILED" },
+    });
+    return { error: err instanceof Error ? err.message : "Transcription failed" };
+  }
+
+  const segments = assignSpeakers(
+    result.segments.map((s) => ({ start: s.start, end: s.end, text: s.text })),
+  );
+  const hasSpeech = result.text.trim().length > 0 && segments.length > 0;
 
   // Race-safe: if cancelCallTranscriptionAction soft-deleted the row while
   // Groq was working, updateMany matches zero rows and the transcript is
@@ -95,8 +115,9 @@ export async function transcribeCallAction(callId: string): Promise<TranscribeRe
     where: { id: call.id, deletedAt: null },
     data: {
       transcriptText: result.text,
-      segments: result.segments as never,
+      segments: segments as never,
       durationSec: result.durationSec ? Math.round(result.durationSec) : null,
+      transcriptionStatus: hasSpeech ? "DONE" : "NO_SPEECH",
     },
   });
 
