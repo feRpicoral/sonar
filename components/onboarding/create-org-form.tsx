@@ -62,10 +62,15 @@ export function CreateOrgForm() {
       }
       lastChecked.current = slug;
       setSlugStatus("checking");
-      checkSlugAvailableAction(slug).then((r) => {
-        if (lastChecked.current !== slug) return;
-        setSlugStatus(r.valid && r.available ? "available" : "taken");
-      });
+      checkSlugAvailableAction(slug)
+        .then((r) => {
+          if (lastChecked.current !== slug) return;
+          setSlugStatus(r.valid && r.available ? "available" : "taken");
+        })
+        .catch(() => {
+          if (lastChecked.current !== slug) return;
+          setSlugStatus("idle");
+        });
     }, 400);
     return () => clearTimeout(timer);
   }, [slug]);
