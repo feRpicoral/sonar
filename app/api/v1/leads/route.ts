@@ -12,7 +12,11 @@ const createSchema = z.object({
   name: z.string().min(1, "Name required").max(120),
   email: z.string().email().optional(),
   companyName: z.string().max(120).optional(),
-  companyWebsite: z.string().url().optional(),
+  companyWebsite: z
+    .string()
+    .url()
+    .refine((u) => /^https?:\/\//i.test(u), "URL must start with http:// or https://")
+    .optional(),
   status: z.enum(["DISCOVERY", "QUALIFIED", "DEMO", "PROPOSAL", "CLOSED"]).optional(),
 });
 
