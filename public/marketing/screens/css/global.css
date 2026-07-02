@@ -1,0 +1,29 @@
+/* Sonar — reset, base, motion */
+/* ============================================================
+   Sonar — design system stylesheet
+   Geist Sans (UI) · Geist Mono (data) · violet-600 accent · zinc base
+   Theme tokens live on .sonar-light / .sonar-dark so both themes
+   can coexist on one canvas. Components consume var(--token).
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  color: var(--fg);
+}
+
+/* Pannable-canvas page: gray backdrop, frames are absolutely positioned.
+   body min-height is set per-file so the page scrolls if the host
+   canvas mode is not active. */
+body.canvas { position: relative; background: oklch(0.955 0 0); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+
