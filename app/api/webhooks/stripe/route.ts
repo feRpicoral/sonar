@@ -109,6 +109,18 @@ async function handleEvent(event: Stripe.Event, tx: TxClient): Promise<AuditEntr
       const orgId = (sub.metadata?.orgId as string | undefined) ?? null;
       if (!orgId) return null;
 
+      // Stripe does not guarantee event ordering. Ignore an event older than the
+      // last one applied so a stale customer.subscription.updated cannot
+      // resurrect PRO after a customer.subscription.deleted.
+      const eventCreatedAt = new Date(event.created * 1000);
+      const existing = await tx.subscription.findUnique({
+        where: { orgId },
+        select: { lastStripeEventAt: true },
+      });
+      if (existing?.lastStripeEventAt && eventCreatedAt <= existing.lastStripeEventAt) {
+        return null;
+      }
+
       const isActive =
         sub.status === "active" || sub.status === "trialing" || sub.status === "past_due";
       const plan = isActive && event.type !== "customer.subscription.deleted" ? "PRO" : "FREE";
@@ -127,6 +139,7 @@ async function handleEvent(event: Stripe.Event, tx: TxClient): Promise<AuditEntr
           plan,
           status: mapStripeStatus(sub.status),
           currentPeriodEnd,
+          lastStripeEventAt: eventCreatedAt,
         },
         update: {
           stripeSubscriptionId: sub.id,
@@ -134,6 +147,7 @@ async function handleEvent(event: Stripe.Event, tx: TxClient): Promise<AuditEntr
           plan,
           status: mapStripeStatus(sub.status),
           currentPeriodEnd,
+          lastStripeEventAt: eventCreatedAt,
         },
       });
 
