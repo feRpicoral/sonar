@@ -12,6 +12,7 @@ import { deliverWebhook } from "./deliver";
 import { generateWebhookSecret } from "./hmac";
 import { WEBHOOK_EVENTS, type WebhookEventType } from "./publish";
 import { assertSafeWebhookUrl, UnsafeWebhookUrlError } from "./safe-url";
+import { decryptWebhookSecret, encryptWebhookSecret } from "./secret-crypto";
 
 const createSchema = z.object({
   url: z.string().url("Invalid URL"),
@@ -53,7 +54,7 @@ export async function createWebhookAction(input: {
       url: parsed.data.url,
       description: parsed.data.description ?? null,
       events,
-      secret,
+      secret: encryptWebhookSecret(secret),
       createdByUserId: session.userId,
     },
     select: { id: true },
@@ -134,7 +135,7 @@ export async function rotateWebhookSecretAction(
   const newSecret = generateWebhookSecret();
   await db.webhook.update({
     where: { id: webhookId },
-    data: { secret: newSecret },
+    data: { secret: encryptWebhookSecret(newSecret) },
   });
 
   await writeAudit({
@@ -171,7 +172,7 @@ export async function replayDeliveryAction(
     orgId: session.orgId,
     webhookId: original.webhook.id,
     url: original.webhook.url,
-    secret: original.webhook.secret,
+    secret: decryptWebhookSecret(original.webhook.secret),
     eventType: original.eventType,
     payload: (original.payload as Record<string, unknown>) ?? {},
   });

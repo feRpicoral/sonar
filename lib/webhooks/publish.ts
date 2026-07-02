@@ -2,6 +2,7 @@ import type { OrgId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
 
 import { deliverWebhook } from "./deliver";
+import { decryptWebhookSecret } from "./secret-crypto";
 
 export const WEBHOOK_EVENTS = [
   "lead.created",
@@ -39,7 +40,7 @@ export async function publishEvent(
         orgId,
         webhookId: w.id,
         url: w.url,
-        secret: w.secret,
+        secret: decryptWebhookSecret(w.secret),
         eventType,
         payload,
       }),
