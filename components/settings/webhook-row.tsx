@@ -105,9 +105,13 @@ export function WebhookRow(props: WebhookRowProps) {
 
   const onCopySecret = async () => {
     if (!rotatedSecret) return;
-    await navigator.clipboard.writeText(rotatedSecret);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await navigator.clipboard.writeText(rotatedSecret);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error("Copy failed");
+    }
   };
 
   const onDelete = () => {
