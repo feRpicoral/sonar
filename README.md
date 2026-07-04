@@ -23,7 +23,7 @@ The reviewer sees a split view with the email on the left and the transcript on 
 
 ### Multi-agent orchestration
 
-- Four sequential nodes: research, transcription, analysis, strategy, writer.
+- Four sequential agent nodes: research, analysis, strategy, writer. Transcription runs first, as a separate step, not as a runner node.
 - Every node returns structured output through Anthropic tool use plus a Zod schema. No free-text outputs.
 - Each step writes an `AgentRunStep` row. The run pauses at `AWAITING_APPROVAL` after the writer step so a human can review.
 - Anthropic prompt caching is enabled on system messages. On repeat runs against the same workspace this cuts input tokens by roughly 70%.
@@ -236,7 +236,7 @@ app/
   docs/           public docs site
 
 lib/
-  agents/         graph, prompts, four nodes, runner, state
+  agents/         prompts, nodes, runner, state
   db/             types (branded), client (lazy adapter), with-org
   auth/           session, sign-in / sign-out actions, org switching
   audit/          writeAudit
