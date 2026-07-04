@@ -134,6 +134,16 @@ export function EmailSplitView(props: EmailSplitViewProps) {
     return map;
   }, [resolved]);
 
+  // Seed the editor from the current draft each time it opens. `editedSubject` /
+  // `editedBody` are initialized once at mount, so without this a regenerate
+  // (which updates the subject/body props via revalidation) would leave the
+  // editor holding stale text and saving would overwrite the new draft.
+  const onStartEdit = () => {
+    setEditedSubject(subject);
+    setEditedBody(body);
+    setIsEditing(true);
+  };
+
   const onSaveEdit = () =>
     startTransition(async () => {
       const result = await updateEmailDraftAction(draftId, editedSubject, editedBody);
@@ -245,12 +255,7 @@ export function EmailSplitView(props: EmailSplitViewProps) {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditing(true)}
-                disabled={isPending}
-              >
+              <Button variant="outline" size="sm" onClick={onStartEdit} disabled={isPending}>
                 <Pencil /> Edit
               </Button>
               <Button
