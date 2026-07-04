@@ -25,7 +25,7 @@ export function SidebarBody({
 }) {
   return (
     <div className="flex h-full flex-col gap-3 p-3">
-      <WorkspaceSwitcher current={current} orgs={orgs} />
+      <WorkspaceSwitcher current={current} orgs={orgs} onNavigate={onNavigate} />
       <SidebarNav leadsCount={leadsCount} onNavigate={onNavigate} />
       <UserMenu user={user} />
     </div>
