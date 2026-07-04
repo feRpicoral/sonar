@@ -35,6 +35,15 @@ function isDuplicateEventError(err: unknown): boolean {
   return /event_?id/i.test(target);
 }
 
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code: unknown }).code === "P2002"
+  );
+}
+
 export async function POST(req: NextRequest) {
   const signature = req.headers.get("stripe-signature");
   if (!signature) return new NextResponse("Missing signature", { status: 400 });
@@ -109,33 +118,54 @@ async function handleEvent(event: Stripe.Event, tx: TxClient): Promise<AuditEntr
       const orgId = (sub.metadata?.orgId as string | undefined) ?? null;
       if (!orgId) return null;
 
+      const eventCreatedAt = new Date(event.created * 1000);
       const isActive =
         sub.status === "active" || sub.status === "trialing" || sub.status === "past_due";
-      const plan = isActive && event.type !== "customer.subscription.deleted" ? "PRO" : "FREE";
+      const plan: "PRO" | "FREE" =
+        isActive && event.type !== "customer.subscription.deleted" ? "PRO" : "FREE";
 
       // As of Stripe API 2025-03-31, current_period_end lives on the
       // subscription item, not the subscription. Reading it off `sub` yields
       // undefined and persists a null period end forever.
       const currentPeriodEnd = stripeUnixToDate(sub.items.data[0]?.current_period_end);
 
-      await tx.subscription.upsert({
-        where: { orgId },
-        create: {
-          orgId,
-          stripeSubscriptionId: sub.id,
-          stripePriceId: sub.items.data[0]?.price.id ?? null,
-          plan,
-          status: mapStripeStatus(sub.status),
-          currentPeriodEnd,
-        },
-        update: {
-          stripeSubscriptionId: sub.id,
-          stripePriceId: sub.items.data[0]?.price.id ?? null,
-          plan,
-          status: mapStripeStatus(sub.status),
-          currentPeriodEnd,
-        },
+      const data = {
+        stripeSubscriptionId: sub.id,
+        stripePriceId: sub.items.data[0]?.price.id ?? null,
+        plan,
+        status: mapStripeStatus(sub.status),
+        currentPeriodEnd,
+        lastStripeEventAt: eventCreatedAt,
+      };
+      const updateWhere = {
+        orgId,
+        OR: [{ lastStripeEventAt: null }, { lastStripeEventAt: { lt: eventCreatedAt } }],
+      };
+
+      const updated = await tx.subscription.updateMany({
+        where: updateWhere,
+        data,
       });
+      if (updated.count === 0) {
+        const existing = await tx.subscription.findUnique({
+          where: { orgId },
+          select: { lastStripeEventAt: true },
+        });
+        if (existing) return null;
+
+        try {
+          await tx.subscription.create({
+            data: { orgId, ...data },
+          });
+        } catch (err) {
+          if (!isUniqueConstraintError(err)) throw err;
+          const retry = await tx.subscription.updateMany({
+            where: updateWhere,
+            data,
+          });
+          if (retry.count === 0) return null;
+        }
+      }
 
       return {
         orgId: asOrgId(orgId),
