@@ -5,12 +5,7 @@ import { writeAudit } from "@/lib/audit/log";
 import { getStripe } from "@/lib/billing/stripe";
 import { getPrisma } from "@/lib/db/client";
 import { asOrgId } from "@/lib/db/types";
-
-function requireEnv(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`${name} is not set`);
-  return v;
-}
+import { requireEnv } from "@/lib/env/server";
 
 const HANDLED_EVENTS = new Set<Stripe.Event.Type>([
   "customer.subscription.created",

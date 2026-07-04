@@ -1,11 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set. See .env.example.`);
-  return value;
-}
+import { requireEnv } from "@/lib/env/server";
 
 /**
  * Server-side Supabase client for Server Components, Route Handlers, and

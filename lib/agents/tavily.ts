@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { requireEnv } from "@/lib/env/server";
+
 const TavilyResultSchema = z.object({
   title: z.string(),
   url: z.string(),
@@ -21,8 +23,7 @@ export interface TavilySearchOptions {
 }
 
 export async function tavilySearch(options: TavilySearchOptions): Promise<TavilyResult[]> {
-  const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) throw new Error("TAVILY_API_KEY is not set. See .env.example.");
+  const apiKey = requireEnv("TAVILY_API_KEY");
 
   const response = await fetch("https://api.tavily.com/search", {
     method: "POST",

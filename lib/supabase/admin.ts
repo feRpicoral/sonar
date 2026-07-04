@@ -2,11 +2,7 @@ import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set. See .env.example.`);
-  return value;
-}
+import { requireEnv } from "@/lib/env/server";
 
 /**
  * Privileged Supabase client for app_metadata updates and admin operations.

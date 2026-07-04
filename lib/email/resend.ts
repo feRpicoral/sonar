@@ -1,12 +1,12 @@
 import { Resend } from "resend";
 
+import { requireEnv } from "@/lib/env/server";
+
 let _client: Resend | undefined;
 
 function getClient(): Resend {
   if (_client) return _client;
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("RESEND_API_KEY is not set. See .env.example.");
-  _client = new Resend(apiKey);
+  _client = new Resend(requireEnv("RESEND_API_KEY"));
   return _client;
 }
 
