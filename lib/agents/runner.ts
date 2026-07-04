@@ -261,7 +261,11 @@ export async function regenerateWriter(runId: string, feedback: string): Promise
   // regenerated. This blocks regenerating a run whose email was already sent
   // (COMPLETED) and loses the race to a concurrent approve-and-send.
   const claim = await db.agentRun.updateMany({
-    where: { id: runId, status: "AWAITING_APPROVAL" },
+    where: {
+      id: runId,
+      status: "AWAITING_APPROVAL",
+      emailDraft: { is: { status: { in: ["DRAFT", "FAILED"] } } },
+    },
     data: { status: "RUNNING" },
   });
   if (claim.count === 0) {
