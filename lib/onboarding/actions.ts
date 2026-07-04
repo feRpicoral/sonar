@@ -88,21 +88,23 @@ export async function createOrgAction(
     await tx.membership.create({
       data: { orgId: o.id, userId: user.id, role: "ADMIN" },
     });
+    await writeAudit(
+      {
+        orgId: asOrgId(o.id),
+        actorUserId: asUserId(user.id),
+        action: "org.created",
+        targetType: "organization",
+        targetId: o.id,
+        metadata: { name: o.name, slug: o.slug },
+      },
+      tx,
+    );
     return o;
   });
 
   const admin = createAdminSupabase();
   await admin.auth.admin.updateUserById(user.id, {
     app_metadata: { ...user.app_metadata, active_org_id: org.id },
-  });
-
-  await writeAudit({
-    orgId: asOrgId(org.id),
-    actorUserId: asUserId(user.id),
-    action: "org.created",
-    targetType: "organization",
-    targetId: org.id,
-    metadata: { name: org.name, slug: org.slug },
   });
 
   redirect("/dashboard");

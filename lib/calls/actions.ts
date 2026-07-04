@@ -106,30 +106,36 @@ export async function transcribeCallAction(callId: string): Promise<TranscribeRe
   // Groq was working, updateMany matches zero rows and the transcript is
   // discarded silently. Groq's sync endpoint has no cancel; this is the
   // closest we can get without moving to the Batch API (24h SLA, wrong tool).
-  const written = await db.call.updateMany({
-    where: { id: call.id, deletedAt: null },
-    data: {
-      transcriptText: result.text,
-      segments: segments as never,
-      durationSec: result.durationSec ? Math.round(result.durationSec) : null,
-      transcriptionStatus: hasSpeech ? "DONE" : "NO_SPEECH",
-    },
+  const written = await db.$transaction(async (tx) => {
+    const updated = await tx.call.updateMany({
+      where: { id: call.id, deletedAt: null },
+      data: {
+        transcriptText: result.text,
+        segments: segments as never,
+        durationSec: result.durationSec ? Math.round(result.durationSec) : null,
+        transcriptionStatus: hasSpeech ? "DONE" : "NO_SPEECH",
+      },
+    });
+    if (updated.count === 0) return updated;
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "call.uploaded",
+        targetType: "call",
+        targetId: asCallId(call.id),
+        metadata: {
+          leadId: asLeadId(call.leadId),
+          segmentCount: result.segments.length,
+          durationSec: result.durationSec,
+        },
+      },
+      tx,
+    );
+    return updated;
   });
 
   if (written.count === 0) return { ok: true };
-
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "call.uploaded",
-    targetType: "call",
-    targetId: asCallId(call.id),
-    metadata: {
-      leadId: asLeadId(call.leadId),
-      segmentCount: result.segments.length,
-      durationSec: result.durationSec,
-    },
-  });
 
   revalidatePath(`/leads/${call.leadId}`);
   revalidatePath(`/leads/${call.leadId}/calls/${call.id}`);
@@ -150,18 +156,23 @@ export async function cancelCallTranscriptionAction(callId: string): Promise<Tra
     return { error: "Transcript already saved - delete instead" };
   }
 
-  await db.call.update({
-    where: { id: callId },
-    data: { deletedAt: new Date() },
-  });
+  await db.$transaction(async (tx) => {
+    await tx.call.update({
+      where: { id: callId },
+      data: { deletedAt: new Date() },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "call.cancelled",
-    targetType: "call",
-    targetId: asCallId(callId),
-    metadata: { leadId: asLeadId(call.leadId) },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "call.cancelled",
+        targetType: "call",
+        targetId: asCallId(callId),
+        metadata: { leadId: asLeadId(call.leadId) },
+      },
+      tx,
+    );
   });
 
   revalidatePath(`/leads/${call.leadId}`);

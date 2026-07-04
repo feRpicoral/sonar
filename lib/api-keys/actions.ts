@@ -37,25 +37,30 @@ export async function createApiKeyAction(input: {
   const hash = hashApiKey(plaintext);
 
   const db = getDb(session.orgId);
-  const apiKey = await db.apiKey.create({
-    data: {
-      orgId: session.orgId,
-      name: parsed.data.name.trim(),
-      hash,
-      last4,
-      scopes,
-      createdByUserId: session.userId,
-    },
-    select: { id: true },
-  });
+  await db.$transaction(async (tx) => {
+    const apiKey = await tx.apiKey.create({
+      data: {
+        orgId: session.orgId,
+        name: parsed.data.name.trim(),
+        hash,
+        last4,
+        scopes,
+        createdByUserId: session.userId,
+      },
+      select: { id: true },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "api_key.created",
-    targetType: "api_key",
-    targetId: asApiKeyId(apiKey.id),
-    metadata: { name: parsed.data.name, scopes, last4 },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "api_key.created",
+        targetType: "api_key",
+        targetId: asApiKeyId(apiKey.id),
+        metadata: { name: parsed.data.name, scopes, last4 },
+      },
+      tx,
+    );
   });
 
   revalidatePath("/settings/api-keys");
@@ -73,18 +78,23 @@ export async function revokeApiKeyAction(apiKeyId: string): Promise<{ error?: st
   if (!key) return { error: "API key not found" };
   if (key.revokedAt) return { error: "Already revoked" };
 
-  await db.apiKey.update({
-    where: { id: apiKeyId },
-    data: { revokedAt: new Date() },
-  });
+  await db.$transaction(async (tx) => {
+    await tx.apiKey.update({
+      where: { id: apiKeyId },
+      data: { revokedAt: new Date() },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "api_key.revoked",
-    targetType: "api_key",
-    targetId: asApiKeyId(apiKeyId),
-    metadata: { name: key.name },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "api_key.revoked",
+        targetType: "api_key",
+        targetId: asApiKeyId(apiKeyId),
+        metadata: { name: key.name },
+      },
+      tx,
+    );
   });
 
   revalidatePath("/settings/api-keys");

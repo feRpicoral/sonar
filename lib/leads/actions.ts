@@ -56,26 +56,33 @@ export async function createLeadAction(
   }
 
   const db = getDb(session.orgId);
-  const lead = await db.lead.create({
-    data: {
-      orgId: session.orgId,
-      name: parsed.data.name,
-      email: parsed.data.email || null,
-      companyName: parsed.data.companyName || null,
-      companyWebsite: parsed.data.companyWebsite || null,
-      status: parsed.data.status,
-      assignedToUserId: session.userId,
-      createdByUserId: session.userId,
-    },
-  });
+  const lead = await db.$transaction(async (tx) => {
+    const created = await tx.lead.create({
+      data: {
+        orgId: session.orgId,
+        name: parsed.data.name,
+        email: parsed.data.email || null,
+        companyName: parsed.data.companyName || null,
+        companyWebsite: parsed.data.companyWebsite || null,
+        status: parsed.data.status,
+        assignedToUserId: session.userId,
+        createdByUserId: session.userId,
+      },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "lead.created",
-    targetType: "lead",
-    targetId: asLeadId(lead.id),
-    metadata: { name: lead.name, status: lead.status },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "lead.created",
+        targetType: "lead",
+        targetId: asLeadId(created.id),
+        metadata: { name: created.name, status: created.status },
+      },
+      tx,
+    );
+
+    return created;
   });
 
   await publishEvent(session.orgId, "lead.created", {
@@ -108,18 +115,23 @@ export async function updateLeadStatusAction(
     return { error: CLOSED_GUARD_MESSAGE };
   }
 
-  await db.lead.update({
-    where: { id: leadId },
-    data: { status },
-  });
+  await db.$transaction(async (tx) => {
+    await tx.lead.update({
+      where: { id: leadId },
+      data: { status },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "lead.updated",
-    targetType: "lead",
-    targetId: asLeadId(leadId),
-    metadata: { from: existing.status, to: status },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "lead.updated",
+        targetType: "lead",
+        targetId: asLeadId(leadId),
+        metadata: { from: existing.status, to: status },
+      },
+      tx,
+    );
   });
 
   await publishEvent(session.orgId, "lead.updated", {
@@ -154,18 +166,23 @@ export async function updateLeadEmailAction(
   const nextEmail = parsed.data || null;
   if (existing.email === nextEmail) return {};
 
-  await db.lead.update({
-    where: { id: leadId },
-    data: { email: nextEmail },
-  });
+  await db.$transaction(async (tx) => {
+    await tx.lead.update({
+      where: { id: leadId },
+      data: { email: nextEmail },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "lead.updated",
-    targetType: "lead",
-    targetId: asLeadId(leadId),
-    metadata: { field: "email" },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "lead.updated",
+        targetType: "lead",
+        targetId: asLeadId(leadId),
+        metadata: { field: "email" },
+      },
+      tx,
+    );
   });
 
   revalidatePath(`/leads/${leadId}`);
@@ -191,22 +208,27 @@ export async function updateLeadAction(
   const existing = await db.lead.findUnique({ where: { id: leadId }, select: { id: true } });
   if (!existing) return { error: "Lead not found" };
 
-  await db.lead.update({
-    where: { id: leadId },
-    data: {
-      name: parsed.data.name,
-      companyName: parsed.data.companyName || null,
-      companyWebsite: parsed.data.companyWebsite || null,
-    },
-  });
+  await db.$transaction(async (tx) => {
+    await tx.lead.update({
+      where: { id: leadId },
+      data: {
+        name: parsed.data.name,
+        companyName: parsed.data.companyName || null,
+        companyWebsite: parsed.data.companyWebsite || null,
+      },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "lead.updated",
-    targetType: "lead",
-    targetId: asLeadId(leadId),
-    metadata: { fields: ["name", "companyName", "companyWebsite"] },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "lead.updated",
+        targetType: "lead",
+        targetId: asLeadId(leadId),
+        metadata: { fields: ["name", "companyName", "companyWebsite"] },
+      },
+      tx,
+    );
   });
 
   revalidatePath("/leads");
@@ -230,18 +252,23 @@ export async function assignLeadAction(
     if (!m) return { error: "Not a member of this workspace" };
   }
 
-  await db.lead.update({
-    where: { id: leadId },
-    data: { assignedToUserId: userId },
-  });
+  await db.$transaction(async (tx) => {
+    await tx.lead.update({
+      where: { id: leadId },
+      data: { assignedToUserId: userId },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "lead.assigned",
-    targetType: "lead",
-    targetId: asLeadId(leadId),
-    metadata: { assignedToUserId: userId },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "lead.assigned",
+        targetType: "lead",
+        targetId: asLeadId(leadId),
+        metadata: { assignedToUserId: userId },
+      },
+      tx,
+    );
   });
 
   revalidatePath("/leads");
@@ -264,17 +291,22 @@ export async function softDeleteLeadAction(leadId: string): Promise<{ error?: st
     return { error: "Only admins or the assignee can delete this lead" };
   }
 
-  await db.lead.update({
-    where: { id: leadId },
-    data: { deletedAt: new Date(), deletedByUserId: session.userId },
-  });
+  await db.$transaction(async (tx) => {
+    await tx.lead.update({
+      where: { id: leadId },
+      data: { deletedAt: new Date(), deletedByUserId: session.userId },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "lead.deleted",
-    targetType: "lead",
-    targetId: asLeadId(leadId),
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "lead.deleted",
+        targetType: "lead",
+        targetId: asLeadId(leadId),
+      },
+      tx,
+    );
   });
 
   revalidatePath("/leads");
@@ -300,14 +332,19 @@ export async function updateLeadStatusBulkAction(
   if (movable.length === 0) return { error: CLOSED_GUARD_MESSAGE };
 
   const movableIds = movable.map((l) => l.id);
-  await db.lead.updateMany({ where: { id: { in: movableIds } }, data: { status } });
+  await db.$transaction(async (tx) => {
+    await tx.lead.updateMany({ where: { id: { in: movableIds } }, data: { status } });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "lead.updated",
-    targetType: "lead",
-    metadata: { bulk: true, count: movableIds.length, to: status },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "lead.updated",
+        targetType: "lead",
+        metadata: { bulk: true, count: movableIds.length, to: status },
+      },
+      tx,
+    );
   });
   await Promise.all(
     movable.map((l) =>
@@ -331,17 +368,24 @@ export async function softDeleteLeadsBulkAction(
       ? {}
       : { OR: [{ assignedToUserId: session.userId }, { createdByUserId: session.userId }] };
 
-  const result = await db.lead.updateMany({
-    where: { id: { in: leadIds }, deletedAt: null, ...ownership },
-    data: { deletedAt: new Date(), deletedByUserId: session.userId },
-  });
+  const result = await db.$transaction(async (tx) => {
+    const deleted = await tx.lead.updateMany({
+      where: { id: { in: leadIds }, deletedAt: null, ...ownership },
+      data: { deletedAt: new Date(), deletedByUserId: session.userId },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "lead.deleted",
-    targetType: "lead",
-    metadata: { bulk: true, count: result.count },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "lead.deleted",
+        targetType: "lead",
+        metadata: { bulk: true, count: deleted.count },
+      },
+      tx,
+    );
+
+    return deleted;
   });
 
   revalidatePath("/leads");

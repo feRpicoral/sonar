@@ -48,25 +48,32 @@ export async function createWebhookAction(input: {
   const secret = generateWebhookSecret();
 
   const db = getDb(session.orgId);
-  const webhook = await db.webhook.create({
-    data: {
-      orgId: session.orgId,
-      url: parsed.data.url,
-      description: parsed.data.description ?? null,
-      events,
-      secret: encryptWebhookSecret(secret),
-      createdByUserId: session.userId,
-    },
-    select: { id: true },
-  });
+  const webhook = await db.$transaction(async (tx) => {
+    const created = await tx.webhook.create({
+      data: {
+        orgId: session.orgId,
+        url: parsed.data.url,
+        description: parsed.data.description ?? null,
+        events,
+        secret: encryptWebhookSecret(secret),
+        createdByUserId: session.userId,
+      },
+      select: { id: true },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "webhook.created",
-    targetType: "webhook",
-    targetId: asWebhookId(webhook.id),
-    metadata: { url: parsed.data.url, events },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "webhook.created",
+        targetType: "webhook",
+        targetId: asWebhookId(created.id),
+        metadata: { url: parsed.data.url, events },
+      },
+      tx,
+    );
+
+    return created;
   });
 
   revalidatePath("/settings/webhooks");
@@ -80,19 +87,24 @@ export async function setWebhookActiveAction(
   const session = await requireAdmin();
   const db = getDb(session.orgId);
 
-  const updated = await db.webhook.update({
-    where: { id: webhookId },
-    data: { active },
-    select: { id: true },
-  });
+  await db.$transaction(async (tx) => {
+    const updated = await tx.webhook.update({
+      where: { id: webhookId },
+      data: { active },
+      select: { id: true },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "webhook.updated",
-    targetType: "webhook",
-    targetId: asWebhookId(updated.id),
-    metadata: { active },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "webhook.updated",
+        targetType: "webhook",
+        targetId: asWebhookId(updated.id),
+        metadata: { active },
+      },
+      tx,
+    );
   });
 
   revalidatePath("/settings/webhooks");
@@ -105,22 +117,30 @@ export async function deleteWebhookAction(
   const session = await requireAdmin();
   const db = getDb(session.orgId);
 
-  const existing = await db.webhook.findUnique({
-    where: { id: webhookId },
-    select: { url: true },
-  });
-  if (!existing) return { error: "Webhook not found" };
+  const deleted = await db.$transaction(async (tx) => {
+    const existing = await tx.webhook.findUnique({
+      where: { id: webhookId },
+      select: { url: true },
+    });
+    if (!existing) return false;
 
-  await db.webhook.delete({ where: { id: webhookId } });
+    await tx.webhook.delete({ where: { id: webhookId } });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "webhook.deleted",
-    targetType: "webhook",
-    targetId: asWebhookId(webhookId),
-    metadata: { url: existing.url },
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "webhook.deleted",
+        targetType: "webhook",
+        targetId: asWebhookId(webhookId),
+        metadata: { url: existing.url },
+      },
+      tx,
+    );
+
+    return true;
   });
+  if (!deleted) return { error: "Webhook not found" };
 
   revalidatePath("/settings/webhooks");
   return { ok: true };
@@ -133,18 +153,23 @@ export async function rotateWebhookSecretAction(
   const db = getDb(session.orgId);
 
   const newSecret = generateWebhookSecret();
-  await db.webhook.update({
-    where: { id: webhookId },
-    data: { secret: encryptWebhookSecret(newSecret) },
-  });
+  await db.$transaction(async (tx) => {
+    await tx.webhook.update({
+      where: { id: webhookId },
+      data: { secret: encryptWebhookSecret(newSecret) },
+    });
 
-  await writeAudit({
-    orgId: session.orgId,
-    actorUserId: session.userId,
-    action: "webhook.secret_rotated",
-    targetType: "webhook",
-    targetId: asWebhookId(webhookId),
-    metadata: {},
+    await writeAudit(
+      {
+        orgId: session.orgId,
+        actorUserId: session.userId,
+        action: "webhook.secret_rotated",
+        targetType: "webhook",
+        targetId: asWebhookId(webhookId),
+        metadata: {},
+      },
+      tx,
+    );
   });
 
   revalidatePath("/settings/webhooks");
