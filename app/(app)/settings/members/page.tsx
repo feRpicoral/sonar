@@ -8,7 +8,11 @@ export default async function MembersPage() {
   const session = await requireSessionOrOnboard();
   const db = getDb(session.orgId);
   const prisma = (await import("@/lib/db/client")).getPrisma();
+  const canManage = session.role === "ADMIN";
 
+  // Pending invites carry bearer tokens (the accept-invite URL). Only admins,
+  // who can create and revoke invites, may see them - a member must never be
+  // able to copy an open ADMIN invite link.
   const [memberships, pendingInvites] = await Promise.all([
     prisma.membership.findMany({
       where: { orgId: session.orgId },
@@ -19,15 +23,16 @@ export default async function MembersPage() {
         user: { select: { id: true, email: true, name: true, avatarUrl: true } },
       },
     }),
-    db.invite.findMany({
-      where: { acceptedAt: null, expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, email: true, role: true, token: true, expiresAt: true },
-    }),
+    canManage
+      ? db.invite.findMany({
+          where: { acceptedAt: null, expiresAt: { gt: new Date() } },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, email: true, role: true, token: true, expiresAt: true },
+        })
+      : [],
   ]);
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const canManage = session.role === "ADMIN";
 
   return (
     <div className="space-y-8">
