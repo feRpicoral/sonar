@@ -101,23 +101,37 @@ export async function runAgent(runId: string): Promise<void> {
       }),
     );
 
-    await db.emailDraft.upsert({
-      where: { runId },
-      create: {
-        orgId,
-        runId,
-        subject: accumulated.writer.subject,
-        body: accumulated.writer.body,
-        citations: accumulated.writer.citations as never,
-        status: "DRAFT",
-      },
-      update: {
+    // Never overwrite a draft that was already approved or sent. On a first run
+    // no draft exists (create); on a retry only a DRAFT/FAILED draft is
+    // refreshed, so a SENT record can't be reset to DRAFT and re-sent.
+    const draftRefreshed = await db.emailDraft.updateMany({
+      where: { runId, status: { in: ["DRAFT", "FAILED"] } },
+      data: {
         subject: accumulated.writer.subject,
         body: accumulated.writer.body,
         citations: accumulated.writer.citations as never,
         status: "DRAFT",
       },
     });
+    if (draftRefreshed.count === 0) {
+      const existing = await db.emailDraft.findUnique({
+        where: { runId },
+        select: { status: true },
+      });
+      if (existing) {
+        throw new Error(`Refusing to overwrite ${existing.status} email draft for run ${runId}`);
+      }
+      await db.emailDraft.create({
+        data: {
+          orgId,
+          runId,
+          subject: accumulated.writer.subject,
+          body: accumulated.writer.body,
+          citations: accumulated.writer.citations as never,
+          status: "DRAFT",
+        },
+      });
+    }
 
     await db.agentRun.update({
       where: { id: runId },
@@ -243,10 +257,20 @@ export async function regenerateWriter(runId: string, feedback: string): Promise
         : []) as unknown as CallContext["segments"])
     : undefined;
 
-  await db.agentRun.update({
-    where: { id: runId },
+  // Claim the run atomically: only a run still AWAITING_APPROVAL may be
+  // regenerated. This blocks regenerating a run whose email was already sent
+  // (COMPLETED) and loses the race to a concurrent approve-and-send.
+  const claim = await db.agentRun.updateMany({
+    where: {
+      id: runId,
+      status: "AWAITING_APPROVAL",
+      emailDraft: { is: { status: { in: ["DRAFT", "FAILED"] } } },
+    },
     data: { status: "RUNNING" },
   });
+  if (claim.count === 0) {
+    throw new Error("Run is not awaiting approval; cannot regenerate");
+  }
 
   try {
     const writer = await runStep<WriterOutput>(orgId, runId, "WRITER", () =>
@@ -261,8 +285,11 @@ export async function regenerateWriter(runId: string, feedback: string): Promise
       }),
     );
 
-    await db.emailDraft.update({
-      where: { runId },
+    // Only overwrite the draft if it is still editable. If a concurrent
+    // approve-and-send flipped it to APPROVED/SENT, refuse rather than clobber
+    // a sent email.
+    const draftRefreshed = await db.emailDraft.updateMany({
+      where: { runId, status: { in: ["DRAFT", "FAILED"] } },
       data: {
         subject: writer.subject,
         body: writer.body,
@@ -270,6 +297,9 @@ export async function regenerateWriter(runId: string, feedback: string): Promise
         status: "DRAFT",
       },
     });
+    if (draftRefreshed.count === 0) {
+      throw new Error("Draft is no longer editable (already approved or sent)");
+    }
 
     await db.agentRun.update({
       where: { id: runId },

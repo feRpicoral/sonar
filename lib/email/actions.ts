@@ -48,7 +48,11 @@ export async function approveAndSendEmailAction(
   // to Resend. A second concurrent click sees count = 0 and bails before the
   // network call, so we can't double-send the same draft.
   const claim = await db.emailDraft.updateMany({
-    where: { id: draftId, status: { in: ["DRAFT", "FAILED"] } },
+    where: {
+      id: draftId,
+      status: { in: ["DRAFT", "FAILED"] },
+      run: { is: { status: "AWAITING_APPROVAL" } },
+    },
     data: {
       status: "APPROVED",
       failureReason: null,
