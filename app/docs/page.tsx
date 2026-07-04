@@ -24,7 +24,7 @@ export default function DocsOverviewPage() {
       <P>
         Successful responses return <InlineCode>{`{ "data": ... }`}</InlineCode>. Errors return{" "}
         <InlineCode>{`{ "error": "..." }`}</InlineCode> with an appropriate HTTP status (400 invalid
-        input, 401 missing/invalid auth, 403 wrong scope, 404 not found).
+        input, 401 missing/invalid auth, 402 plan limit reached, 403 wrong scope, 404 not found).
       </P>
 
       <H3>Idempotency</H3>
@@ -35,7 +35,9 @@ export default function DocsOverviewPage() {
 
       <H3>Rate limiting</H3>
       <P>
-        Not yet enforced. Plan tier limits and per-org throttling are tracked as deferred work (see{" "}
+        The Free-plan monthly agent-run cap <em>is</em> enforced -{" "}
+        <InlineCode>POST /api/v1/runs</InlineCode> returns <InlineCode>402</InlineCode> once it is
+        hit. General per-request throttling is not yet enforced and is tracked as deferred work (see{" "}
         <InlineCode>.env.example</InlineCode>). The API may add{" "}
         <InlineCode>RateLimit-Remaining</InlineCode> and <InlineCode>Retry-After</InlineCode>{" "}
         headers in a later release - until then, treat the API as best-effort and back off on{" "}

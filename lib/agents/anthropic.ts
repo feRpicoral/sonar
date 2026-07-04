@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
+import { requireEnv } from "@/lib/env/server";
+
 export const MODELS = {
   SONNET: "claude-sonnet-4-6",
   HAIKU: "claude-haiku-4-5-20251001",
@@ -11,9 +13,7 @@ export type Model = (typeof MODELS)[keyof typeof MODELS];
 let _client: Anthropic | undefined;
 function getClient(): Anthropic {
   if (_client) return _client;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set. See .env.example.");
-  _client = new Anthropic({ apiKey });
+  _client = new Anthropic({ apiKey: requireEnv("ANTHROPIC_API_KEY") });
   return _client;
 }
 

@@ -8,13 +8,8 @@ import { writeAudit } from "@/lib/audit/log";
 import { requireSessionOrOnboard } from "@/lib/auth/session";
 import { asCallId, asLeadId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
-import {
-  callAudioPath,
-  createSignedCallUpload,
-  downloadCallAudio,
-  isAllowedAudioMime,
-  MAX_AUDIO_BYTES,
-} from "@/lib/storage/audio";
+import { createSignedCallUpload, downloadCallAudio } from "@/lib/storage/audio";
+import { callAudioPath, isAllowedAudioMime, MAX_AUDIO_BYTES } from "@/lib/storage/audio-constants";
 import { assignSpeakers } from "@/lib/transcription/speakers";
 import { transcribeAudio } from "@/lib/transcription/whisper";
 

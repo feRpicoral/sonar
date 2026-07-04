@@ -15,16 +15,18 @@ export function SidebarBody({
   orgs,
   user,
   leadsCount,
+  onNavigate,
 }: {
   current: OrgItem;
   orgs: OrgItem[];
   user: SidebarUser;
   leadsCount?: number;
+  onNavigate?: () => void;
 }) {
   return (
     <div className="flex h-full flex-col gap-3 p-3">
-      <WorkspaceSwitcher current={current} orgs={orgs} />
-      <SidebarNav leadsCount={leadsCount} />
+      <WorkspaceSwitcher current={current} orgs={orgs} onNavigate={onNavigate} />
+      <SidebarNav leadsCount={leadsCount} onNavigate={onNavigate} />
       <UserMenu user={user} />
     </div>
   );

@@ -33,7 +33,15 @@ function roleLabel(role: OrgItem["role"]) {
   return role === "ADMIN" ? "Admin" : "Member";
 }
 
-export function WorkspaceSwitcher({ current, orgs }: { current: OrgItem; orgs: OrgItem[] }) {
+export function WorkspaceSwitcher({
+  current,
+  orgs,
+  onNavigate,
+}: {
+  current: OrgItem;
+  orgs: OrgItem[];
+  onNavigate?: () => void;
+}) {
   const [isPending, startTransition] = useTransition();
 
   return (
@@ -71,6 +79,7 @@ export function WorkspaceSwitcher({ current, orgs }: { current: OrgItem; orgs: O
                 startTransition(async () => {
                   const result = await switchOrgAction(org.id);
                   if (result?.error) toast.error(result.error);
+                  else onNavigate?.();
                 });
               }}
             >
@@ -92,7 +101,7 @@ export function WorkspaceSwitcher({ current, orgs }: { current: OrgItem; orgs: O
         })}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/create-org" className="gap-2">
+          <Link href="/create-org" className="gap-2" onClick={onNavigate}>
             <Plus className="size-3.5" />
             Create workspace
           </Link>

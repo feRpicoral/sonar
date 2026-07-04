@@ -5,12 +5,7 @@ import { writeAudit } from "@/lib/audit/log";
 import { getStripe } from "@/lib/billing/stripe";
 import { getPrisma } from "@/lib/db/client";
 import { asOrgId } from "@/lib/db/types";
-
-function requireEnv(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`${name} is not set`);
-  return v;
-}
+import { requireEnv } from "@/lib/env/server";
 
 const HANDLED_EVENTS = new Set<Stripe.Event.Type>([
   "customer.subscription.created",
@@ -21,6 +16,19 @@ const HANDLED_EVENTS = new Set<Stripe.Event.Type>([
 ]);
 
 type TxClient = Parameters<Parameters<ReturnType<typeof getPrisma>["$transaction"]>[0]>[0];
+
+// A P2002 specifically on the processed-events unique key means a concurrent
+// delivery of the SAME event won the claim - safe to acknowledge. Any other
+// P2002 comes from the handler (e.g. a subscription unique conflict) and must
+// surface as a 500 so Stripe retries instead of us silently dropping the event.
+function isDuplicateEventError(err: unknown): boolean {
+  if (typeof err !== "object" || err === null || !("code" in err)) return false;
+  if ((err as { code: unknown }).code !== "P2002") return false;
+  const meta = (err as { meta?: { modelName?: unknown; target?: unknown } }).meta;
+  if (meta?.modelName === "ProcessedStripeEvent") return true;
+  const target = Array.isArray(meta?.target) ? meta.target.join(",") : String(meta?.target ?? "");
+  return /event_?id/i.test(target);
+}
 
 function isUniqueConstraintError(err: unknown): boolean {
   return (
@@ -70,8 +78,8 @@ export async function POST(req: NextRequest) {
       return await handleEvent(event, tx);
     });
   } catch (err) {
-    if (isUniqueConstraintError(err)) {
-      // Two deliveries raced; the other one won. Acknowledge.
+    if (isDuplicateEventError(err)) {
+      // Two deliveries of the same event raced; the other one won. Acknowledge.
       return NextResponse.json({ received: true, duplicate: true });
     }
     console.error(`Stripe webhook handler for ${event.type} failed:`, err);
@@ -105,32 +113,54 @@ async function handleEvent(event: Stripe.Event, tx: TxClient): Promise<AuditEntr
       const orgId = (sub.metadata?.orgId as string | undefined) ?? null;
       if (!orgId) return null;
 
+      const eventCreatedAt = new Date(event.created * 1000);
       const isActive =
         sub.status === "active" || sub.status === "trialing" || sub.status === "past_due";
-      const plan = isActive && event.type !== "customer.subscription.deleted" ? "PRO" : "FREE";
+      const plan: "PRO" | "FREE" =
+        isActive && event.type !== "customer.subscription.deleted" ? "PRO" : "FREE";
 
-      await tx.subscription.upsert({
-        where: { orgId },
-        create: {
-          orgId,
-          stripeSubscriptionId: sub.id,
-          stripePriceId: sub.items.data[0]?.price.id ?? null,
-          plan,
-          status: mapStripeStatus(sub.status),
-          currentPeriodEnd: stripeUnixToDate(
-            (sub as unknown as { current_period_end?: number }).current_period_end,
-          ),
-        },
-        update: {
-          stripeSubscriptionId: sub.id,
-          stripePriceId: sub.items.data[0]?.price.id ?? null,
-          plan,
-          status: mapStripeStatus(sub.status),
-          currentPeriodEnd: stripeUnixToDate(
-            (sub as unknown as { current_period_end?: number }).current_period_end,
-          ),
-        },
+      // As of Stripe API 2025-03-31, current_period_end lives on the
+      // subscription item, not the subscription. Reading it off `sub` yields
+      // undefined and persists a null period end forever.
+      const currentPeriodEnd = stripeUnixToDate(sub.items.data[0]?.current_period_end);
+
+      const data = {
+        stripeSubscriptionId: sub.id,
+        stripePriceId: sub.items.data[0]?.price.id ?? null,
+        plan,
+        status: mapStripeStatus(sub.status),
+        currentPeriodEnd,
+        lastStripeEventAt: eventCreatedAt,
+      };
+      const updateWhere = {
+        orgId,
+        OR: [{ lastStripeEventAt: null }, { lastStripeEventAt: { lt: eventCreatedAt } }],
+      };
+
+      const updated = await tx.subscription.updateMany({
+        where: updateWhere,
+        data,
       });
+      if (updated.count === 0) {
+        const existing = await tx.subscription.findUnique({
+          where: { orgId },
+          select: { lastStripeEventAt: true },
+        });
+        if (existing) return null;
+
+        try {
+          await tx.subscription.create({
+            data: { orgId, ...data },
+          });
+        } catch (err) {
+          if (!isUniqueConstraintError(err)) throw err;
+          const retry = await tx.subscription.updateMany({
+            where: updateWhere,
+            data,
+          });
+          if (retry.count === 0) return null;
+        }
+      }
 
       return {
         orgId: asOrgId(orgId),
@@ -143,11 +173,25 @@ async function handleEvent(event: Stripe.Event, tx: TxClient): Promise<AuditEntr
     case "invoice.payment_succeeded":
     case "invoice.payment_failed": {
       const invoice = event.data.object;
-      const orgId =
+      const subscriptionDetails = invoice.parent?.subscription_details ?? null;
+      let orgId =
         (invoice.metadata?.orgId as string | undefined) ??
-        (invoice as unknown as { subscription_details?: { metadata?: { orgId?: string } } })
-          .subscription_details?.metadata?.orgId ??
+        (subscriptionDetails?.metadata?.orgId as string | undefined) ??
         null;
+
+      // Fall back to our own record: resolve the org from the subscription id
+      // when the invoice metadata snapshot doesn't carry orgId.
+      if (!orgId && subscriptionDetails?.subscription) {
+        const subscriptionId =
+          typeof subscriptionDetails.subscription === "string"
+            ? subscriptionDetails.subscription
+            : subscriptionDetails.subscription.id;
+        const existing = await tx.subscription.findUnique({
+          where: { stripeSubscriptionId: subscriptionId },
+          select: { orgId: true },
+        });
+        orgId = existing?.orgId ?? null;
+      }
       if (!orgId) return null;
       return {
         orgId: asOrgId(orgId),

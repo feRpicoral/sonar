@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { cancelCallTranscriptionAction } from "@/lib/calls/actions";
 import { uploadCallFile, type UploadStage } from "@/lib/calls/upload-call-file";
-import { ALLOWED_AUDIO_MIME } from "@/lib/storage/audio";
+import { ALLOWED_AUDIO_MIME } from "@/lib/storage/audio-constants";
 import { cn } from "@/lib/utils";
 
 export function UploadCallDialog({ leadId }: { leadId: string }) {

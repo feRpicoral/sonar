@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-import { audioExtForMime } from "@/lib/storage/audio";
+import { requireEnv } from "@/lib/env/server";
+import { audioExtForMime } from "@/lib/storage/audio-constants";
 
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/audio/transcriptions";
 const MODEL = "whisper-large-v3";
@@ -27,12 +28,6 @@ export interface TranscriptionResult {
   language?: string;
   durationSec?: number;
   segments: WhisperSegment[];
-}
-
-function requireEnv(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`${name} is not set. See .env.example.`);
-  return v;
 }
 
 /**

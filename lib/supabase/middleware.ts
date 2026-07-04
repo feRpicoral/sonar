@@ -1,11 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set. See .env.example.`);
-  return value;
-}
+import { requireEnv } from "@/lib/env/server";
 
 /**
  * Refreshes Supabase session cookies on every request that matches the root

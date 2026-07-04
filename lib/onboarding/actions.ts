@@ -21,6 +21,14 @@ const schema = z.object({
 export async function checkSlugAvailableAction(
   slug: string,
 ): Promise<{ available: boolean; valid: boolean }> {
+  // Require a signed-in user: without this, the action is an unauthenticated
+  // endpoint that lets anyone enumerate which org slugs exist.
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { available: false, valid: false };
+
   const parsed = schema.shape.slug.safeParse(slug);
   if (!parsed.success) return { available: false, valid: false };
 
