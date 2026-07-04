@@ -55,13 +55,13 @@ export default function AuthenticationDocsPage() {
             <Td>
               <InlineCode>leads:read</InlineCode>
             </Td>
-            <Td>List leads and read individual leads (incl. attached calls).</Td>
+            <Td>List leads.</Td>
           </tr>
           <tr>
             <Td>
               <InlineCode>leads:write</InlineCode>
             </Td>
-            <Td>Create, update, soft-delete leads. Does not grant read.</Td>
+            <Td>Create leads. Does not grant read.</Td>
           </tr>
           <tr>
             <Td>
@@ -89,7 +89,7 @@ export default function AuthenticationDocsPage() {
       <H2>Audit trail</H2>
       <P>
         Every API key use is timestamped (<InlineCode>last_used_at</InlineCode> visible in the
-        settings UI). Mutating calls (POST / PATCH / DELETE) write an audit-log entry with{" "}
+        settings UI). Mutating calls (POST) write an audit-log entry with{" "}
         <InlineCode>source: api</InlineCode> and the calling key&apos;s id.
       </P>
     </article>

@@ -78,8 +78,25 @@ export async function deliverWebhook(input: DeliveryInput): Promise<{ delivered:
       },
       body: rawBody,
       signal: controller.signal,
+      // Do not follow redirects. assertSafeWebhookUrl only vets the original
+      // host; a validated endpoint could otherwise 3xx us to 127.0.0.1 or the
+      // cloud metadata endpoint, re-opening the SSRF hole the check closes.
+      redirect: "manual",
     });
     clearTimeout(timer);
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location") ?? "unknown";
+      await db.webhookDelivery.update({
+        where: { id: delivery.id },
+        data: {
+          status: "FAILED",
+          responseStatus: response.status,
+          responseBody: `Refusing to follow redirect to ${location}`.slice(0, 2048),
+        },
+      });
+      return { delivered: false };
+    }
 
     const responseBody = await response
       .text()

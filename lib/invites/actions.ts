@@ -1,6 +1,5 @@
 "use server";
 
-import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -12,6 +11,8 @@ import { asMembershipId, asOrgId, asUserId } from "@/lib/db/types";
 import { getDb } from "@/lib/db/with-org";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { createServerSupabase } from "@/lib/supabase/server";
+
+import { generateInviteToken, hashInviteToken } from "./token";
 
 // Thrown inside the accept transaction when a concurrent acceptance wins the
 // membership.create. Throwing rolls the tx back (so acceptedAt stays null);
@@ -37,7 +38,7 @@ export async function createInviteAction(formData: FormData): Promise<CreateInvi
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const token = randomBytes(32).toString("base64url");
+  const rawToken = generateInviteToken();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   const db = getDb(session.orgId);
@@ -46,7 +47,7 @@ export async function createInviteAction(formData: FormData): Promise<CreateInvi
       // orgId is auto-injected by the with-org middleware; we pass it here too
       // to satisfy the Prisma type signature.
       orgId: session.orgId,
-      token,
+      token: hashInviteToken(rawToken),
       email: parsed.data.email ?? null,
       role: parsed.data.role,
       expiresAt,
@@ -65,7 +66,7 @@ export async function createInviteAction(formData: FormData): Promise<CreateInvi
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   revalidatePath("/settings/members");
-  return { url: `${base}/accept-invite/${token}` };
+  return { url: `${base}/accept-invite/${rawToken}` };
 }
 
 export async function acceptInviteAction(token: string): Promise<{ error?: string }> {
@@ -77,7 +78,7 @@ export async function acceptInviteAction(token: string): Promise<{ error?: strin
 
   const prisma = getPrisma();
   const invite = await prisma.invite.findUnique({
-    where: { token },
+    where: { token: hashInviteToken(token) },
     select: { id: true, orgId: true, role: true, email: true, acceptedAt: true, expiresAt: true },
   });
   if (!invite) return { error: "Invalid invite" };
@@ -292,6 +293,28 @@ export async function removeMemberAction(membershipId: string): Promise<{ error?
     targetType: "membership",
     targetId: asMembershipId(membershipId),
     metadata: { removedUserId: result.targetUserId, role: result.previousRole },
+  });
+
+  revalidatePath("/settings/members");
+  return {};
+}
+
+export async function revokeInviteAction(inviteId: string): Promise<{ error?: string }> {
+  const session = await requireAdmin();
+  const db = getDb(session.orgId);
+
+  const deleted = await db.invite.deleteMany({
+    where: { id: inviteId, acceptedAt: null },
+  });
+  if (deleted.count === 0) return { error: "Invite not found or already accepted" };
+
+  await writeAudit({
+    orgId: session.orgId,
+    actorUserId: session.userId,
+    action: "member.invite_revoked",
+    targetType: "invite",
+    targetId: inviteId,
+    metadata: {},
   });
 
   revalidatePath("/settings/members");

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { requireEnv } from "@/lib/env/server";
-import { audioExtForMime } from "@/lib/storage/audio";
+import { audioExtForMime } from "@/lib/storage/audio-constants";
 
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/audio/transcriptions";
 const MODEL = "whisper-large-v3";

@@ -3,7 +3,11 @@ import {
   prepareCallUploadAction,
   transcribeCallAction,
 } from "@/lib/calls/actions";
-import { CALL_AUDIO_BUCKET, isAllowedAudioMime, MAX_AUDIO_BYTES } from "@/lib/storage/audio";
+import {
+  CALL_AUDIO_BUCKET,
+  isAllowedAudioMime,
+  MAX_AUDIO_BYTES,
+} from "@/lib/storage/audio-constants";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 
 export type UploadStage = "idle" | "uploading" | "transcribing";

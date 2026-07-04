@@ -48,7 +48,13 @@ export function MobileTopbar({
         </SheetTrigger>
         <SheetContent side="left" className="bg-bg-subtle flex w-72 flex-col p-0">
           <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <SidebarBody current={current} orgs={orgs} user={user} leadsCount={leadsCount} />
+          <SidebarBody
+            current={current}
+            orgs={orgs}
+            user={user}
+            leadsCount={leadsCount}
+            onNavigate={() => setOpen(false)}
+          />
         </SheetContent>
       </Sheet>
     </header>

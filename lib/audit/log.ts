@@ -12,6 +12,7 @@ export type AuditAction =
   | "org.updated"
   | "org.deleted"
   | "member.invited"
+  | "member.invite_revoked"
   | "member.joined"
   | "member.removed"
   | "member.role_changed"

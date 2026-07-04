@@ -21,8 +21,12 @@ export async function retryRunAction(runId: string): Promise<{ error?: string }>
     };
   }
 
+  // Only failed or cancelled runs may be retried. Re-running a COMPLETED run
+  // (email already sent) or one AWAITING_APPROVAL would rewrite its email draft
+  // and reset a SENT draft back to DRAFT, corrupting the send record and
+  // allowing a duplicate send.
   const claim = await db.agentRun.updateMany({
-    where: { id: runId, status: { notIn: ["RUNNING", "PENDING"] } },
+    where: { id: runId, status: { in: ["FAILED", "CANCELLED"] } },
     data: { status: "PENDING", completedAt: null },
   });
   if (claim.count === 0) {
@@ -31,7 +35,7 @@ export async function retryRunAction(runId: string): Promise<{ error?: string }>
       select: { id: true, status: true },
     });
     if (!run) return { error: "Run not found" };
-    return { error: "Run is already in progress" };
+    return { error: "Only failed or cancelled runs can be retried" };
   }
 
   await writeAudit({

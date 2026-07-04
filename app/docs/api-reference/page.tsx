@@ -23,6 +23,7 @@ export default function ApiReferenceDocsPage() {
     {
       "id": "8c5a...",
       "name": "Jane Doe",
+      "email": "jane@acme.com",
       "companyName": "Acme Inc",
       "companyWebsite": "https://acme.com",
       "status": "DISCOVERY",
@@ -59,7 +60,8 @@ export default function ApiReferenceDocsPage() {
   -d '{"leadId":"<uuid>","callId":"<uuid>"}' \\
   ${base}/runs`}</CodeBlock>
       <P>
-        Required scope: <InlineCode>runs:write</InlineCode>.
+        Required scope: <InlineCode>runs:write</InlineCode>. Returns <InlineCode>402</InlineCode>{" "}
+        when the workspace has hit its Free-plan monthly run limit.
       </P>
 
       <H3>GET /api/v1/runs/{`{id}`}</H3>

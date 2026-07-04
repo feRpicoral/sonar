@@ -15,7 +15,7 @@ A B2B sales enablement SaaS. A sequential agent pipeline processes sales call re
 ## Architecture pillars
 
 1. **Multi-agent with state** - Sequential nodes (research, transcription, analysis, strategy, writer) return structured Zod outputs, never free text. The runner persists each `AgentRunStep` row so the run resumes from `AWAITING_APPROVAL` after the writer. Background execution is Next.js 16's `after()`; Supabase Realtime is the UI transport. (Inngest + LangGraph migration is a deferred follow-up - see `.env.example`.)
-2. **Audio with citations** - Groq Whisper Large v3 with VAD pre-trim. Segments + timestamps. Writer node outputs both prose and structured citations that link to transcript moments.
+2. **Audio with citations** - Groq Whisper Large v3. Segments + timestamps. Writer node outputs both prose and structured citations that link to transcript moments. (VAD pre-trim before send is a deferred optimization, not yet implemented.)
 3. **Multi-tenant** - Three layers: branded `OrgId` TypeScript types + Prisma `$extends` middleware + Postgres RLS. Every business table has `orgId` indexed.
 
 ## Code rules
@@ -38,10 +38,10 @@ A B2B sales enablement SaaS. A sequential agent pipeline processes sales call re
 - **Auth**: Supabase Auth with `active_org_id` JWT claim.
 - **DB**: Supabase Postgres with pgvector. RLS enabled on all multi-tenant tables.
 - **AI**: Anthropic SDK with prompt caching. Sonnet 4.6 for analysis / strategy / writer. Haiku 4.5 for research summarization.
-- **Audio**: Groq Whisper Large v3. VAD pre-trim before send.
+- **Audio**: Groq Whisper Large v3. (VAD pre-trim before send is deferred, not yet implemented.)
 - **Background**: Next.js 16 `after()` for agent runs (route `maxDuration = 60` on Hobby). Inngest for retries / crons is a deferred follow-up.
 - **Realtime**: Supabase Realtime channel per agent run.
-- **Streaming**: Vercel AI SDK on the writer node only (token-level UX).
+- **Streaming**: deferred. The writer node returns a single structured Anthropic tool call today; token-level streaming (Vercel AI SDK) is a planned follow-up.
 - **Billing**: Stripe test mode, idempotent webhook handling via `processed_stripe_events`.
 - **Email**: Resend, delivery-status webhook with signature verify.
 - **Rate limit**: deferred. Per-org limits with Upstash Redis are stubbed in `.env.example` but not enforced yet.
@@ -63,6 +63,5 @@ app/                        # Next.js App Router (marketing, auth, app, api, doc
 components/                 # shared components (incl. components/ui from shadcn)
 lib/                        # domain logic by area: agents, db, auth, billing, email, …
 prisma/                     # schema + migrations + seed
-e2e/                        # Playwright
 .github/workflows/          # CI
 ```

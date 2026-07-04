@@ -14,11 +14,26 @@ import { publishEvent } from "@/lib/webhooks/publish";
 const LEAD_STATUSES = ["DISCOVERY", "QUALIFIED", "DEMO", "PROPOSAL", "CLOSED"] as const;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
+function isLeadStatus(value: string): value is LeadStatus {
+  return (LEAD_STATUSES as readonly string[]).includes(value);
+}
+
+// Reject non-http(s) schemes (javascript:, data:, ...). companyWebsite is
+// rendered as a raw <a href> on the lead page, so an unrestricted URL is a
+// stored-XSS vector.
+const companyWebsiteSchema = z.union([
+  z
+    .string()
+    .url("Invalid URL")
+    .refine((u) => /^https?:\/\//i.test(u), "URL must start with http:// or https://"),
+  z.literal(""),
+]);
+
 const createSchema = z.object({
   name: z.string().min(1, "Name required").max(120),
   email: z.union([z.string().email("Invalid email"), z.literal("")]).optional(),
   companyName: z.union([z.string().max(120), z.literal("")]).optional(),
-  companyWebsite: z.union([z.string().url("Invalid URL"), z.literal("")]).optional(),
+  companyWebsite: companyWebsiteSchema.optional(),
   status: z.enum(LEAD_STATUSES).default("DISCOVERY"),
 });
 
@@ -80,6 +95,8 @@ export async function updateLeadStatusAction(
 ): Promise<{ error?: string }> {
   const session = await requireSessionOrOnboard();
   const db = getDb(session.orgId);
+
+  if (!isLeadStatus(status)) return { error: "Invalid status" };
 
   const existing = await db.lead.findUnique({
     where: { id: leadId },
@@ -158,7 +175,7 @@ export async function updateLeadEmailAction(
 const updateLeadSchema = z.object({
   name: z.string().min(1, "Name required").max(120),
   companyName: z.union([z.string().max(120), z.literal("")]).optional(),
-  companyWebsite: z.union([z.string().url("Invalid URL"), z.literal("")]).optional(),
+  companyWebsite: companyWebsiteSchema.optional(),
 });
 
 export async function updateLeadAction(
@@ -273,6 +290,7 @@ export async function updateLeadStatusBulkAction(
   const session = await requireSessionOrOnboard();
   const db = getDb(session.orgId);
   if (leadIds.length === 0) return {};
+  if (!isLeadStatus(status)) return { error: "Invalid status" };
 
   const leads = await db.lead.findMany({
     where: { id: { in: leadIds }, deletedAt: null },
