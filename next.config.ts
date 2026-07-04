@@ -1,14 +1,21 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV === "development";
+const scriptSrc = [
+  "'self'",
+  "'unsafe-inline'",
+  ...(isDev ? ["'unsafe-eval'"] : []),
+  "https://*.posthog.com",
+].join(" ");
+
 // Content-Security-Policy scoped to the app's integrations (Supabase, PostHog,
-// Sentry, Stripe). 'unsafe-inline'/'unsafe-eval' stay in script-src because the
-// App Router injects inline bootstrap scripts and there is no nonce pipeline
-// yet; everything else is locked down. connect-src covers Supabase REST +
-// Realtime (wss), PostHog, Sentry ingest, and Stripe.
+// Sentry, Stripe). 'unsafe-inline' stays in script-src because the App Router
+// injects inline bootstrap scripts and there is no nonce pipeline yet; unsafe
+// eval is development-only for React/Next debugging.
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.posthog.com",
+  `script-src ${scriptSrc}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
@@ -41,9 +48,8 @@ const nextConfig: NextConfig = {
   },
 };
 
-// Wrap the config so the Sentry SDK instruments the client bundle and (when
-// SENTRY_AUTH_TOKEN / org / project are set in CI) uploads source maps. Without
-// this wrapper the client Sentry setup never runs.
+// Wrap the config so Sentry applies its Next.js build-time instrumentation and
+// uploads source maps when SENTRY_AUTH_TOKEN / org / project are set in CI.
 export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
