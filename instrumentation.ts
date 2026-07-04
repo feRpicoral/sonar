@@ -1,6 +1,5 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    // Fail fast at boot if the core environment is misconfigured.
     const { validateServerEnv } = await import("./lib/env/server");
     validateServerEnv();
     await import("./sentry.server.config");
